@@ -5,7 +5,7 @@ import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<Flash> }) {
-  await requireStaff();
+  const me = await requireStaff();
   const { error, message } = await searchParams;
   const supabase = await createClient();
   const [{ data: trainees }, { data: anns }] = await Promise.all([
@@ -17,11 +17,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       .limit(8),
   ]);
   const count = (s: string) => (trainees ?? []).filter((t) => t.status === s).length;
+  // 段階2〜の設定が済んでいるか（チャットの表が見えるかで簡易判定）
+  const { error: notReady } = await supabase.from('chat_rooms').select('id', { head: true, count: 'exact' }).limit(1);
 
   return (
     <div className="space-y-6">
       <PageTitle action={<LinkButton href="/admin/announcements/new">＋ お知らせを作成</LinkButton>}>ダッシュボード</PageTitle>
       <Notice error={error} message={message} />
+      {notReady && me.role === 'admin' && (
+        <Link href="/admin/setup" className="block rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 text-amber-950">
+          <strong>⚠️ まだ使えない機能があります（チャット・出欠など）。</strong> データベースの追加設定が必要です。ここを押して「設定チェック」を開いてください。
+        </Link>
+      )}
       <div className="grid grid-cols-3 gap-3">
         {[
           ['利用中', count('active')],
