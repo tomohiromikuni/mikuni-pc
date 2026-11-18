@@ -26,22 +26,35 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
   const t = room.profiles as any;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-      <div>
-        <Link href="/admin/chat" className="text-sm font-bold text-brand-700">‹ チャット一覧</Link>
-        <div className="mt-2 mb-4 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold">
-            <Link href={`/admin/trainees/${room.trainee_id}`} className="hover:underline">{t?.full_name}</Link> さん
-          </h1>
-          <form action={setChatStatus.bind(null, id)} className="flex items-center gap-2">
-            <select name="status" defaultValue={room.status} aria-label="対応状態" className="w-auto py-1">
-              {Object.entries(CHAT_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <Button type="submit" variant="secondary" className="min-h-9 px-3 py-1 text-sm">変更</Button>
-          </form>
-        </div>
-        <ChatThread roomId={id} orgId={room.org_id} meId={me.id} viewer="staff" messages={messages} otherReadAt={traineeRead} />
-      </div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <ChatThread
+        roomId={id}
+        orgId={room.org_id}
+        meId={me.id}
+        viewer="staff"
+        messages={messages}
+        otherReadAt={traineeRead}
+        traineeName={t?.full_name ?? ''}
+        header={
+          <>
+            <Link href="/admin/chat" aria-label="チャット一覧に戻る" className="flex h-11 w-11 items-center justify-center text-white">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            </Link>
+            <div className="min-w-0 flex-1">
+              <Link href={`/admin/trainees/${room.trainee_id}`} className="block truncate text-[17px] leading-tight font-bold text-white hover:underline">
+                {t?.full_name} さん
+              </Link>
+              <p className="truncate text-[11px] opacity-90">{t?.full_name_kana}</p>
+            </div>
+            <form action={setChatStatus.bind(null, id)} className="flex shrink-0 items-center gap-1 pr-1">
+              <select name="status" defaultValue={room.status} aria-label="対応状態" className="w-auto py-1 text-sm">
+                {Object.entries(CHAT_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <button type="submit" className="rounded-lg bg-white/20 px-2 py-1.5 text-sm font-bold text-white hover:bg-white/30">変更</button>
+            </form>
+          </>
+        }
+      />
       <aside className="space-y-3">
         <Card>
           <h2 className="mb-2 font-bold">スタッフ用メモ</h2>
