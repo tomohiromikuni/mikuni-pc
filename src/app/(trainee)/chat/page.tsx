@@ -16,7 +16,8 @@ export default async function ChatPage() {
       </div>
     );
   }
-  const { messages, staffRead } = await loadThread(roomId, me.id);
+  // 開いた時点で既読にする（下のタブの数字を消すため）
+  const [{ messages, staffRead }] = await Promise.all([loadThread(roomId, me.id), supabase.rpc('mark_chat_read', { p_room: roomId })]);
   return (
     <ChatThread
       roomId={roomId}

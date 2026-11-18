@@ -1,6 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/browser';
 
 const TABS = [
   { href: '/home', label: 'ホーム', icon: 'M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
@@ -10,8 +12,31 @@ const TABS = [
   { href: '/mypage', label: 'マイページ', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-export function TraineeNav({ unread, chatUnread = 0, todo = 0 }: { unread: number; chatUnread?: number; todo?: number }) {
+export function TraineeNav(initial: { unread: number; chatUnread?: number; todo?: number }) {
   const path = usePathname();
+  const [counts, setCounts] = useState({ unread: initial.unread, chatUnread: initial.chatUnread ?? 0, todo: initial.todo ?? 0 });
+  const { unread, chatUnread, todo } = counts;
+
+  // 画面を移動するたびに未読数を数え直す（読んだのに数字が残らないように）
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const supabase = createClient();
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user.id;
+      if (!uid) return;
+      const [a, c, v] = await Promise.all([
+        supabase.from('announcement_recipients').select('announcement_id', { count: 'exact', head: true }).eq('trainee_id', uid).is('read_at', null),
+        supabase.rpc('my_chat_unread'),
+        supabase.rpc('my_pending_surveys'),
+      ]);
+      if (!cancelled) setCounts({ unread: a.count ?? 0, chatUnread: (c.data as number) ?? 0, todo: (v.data as number) ?? 0 });
+    }, 400); // 既読の記録が終わるのを少し待つ
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [path]);
   return (
     <nav
       aria-label="メインメニュー"
