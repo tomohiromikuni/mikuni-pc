@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getTargetOptions } from '@/lib/targets';
 
 export default async function NewAnnouncementPage({ searchParams }: { searchParams: Promise<Flash> }) {
-  await requirePerm('announce');
+  const me = await requirePerm('announce');
   const { error } = await searchParams;
   const supabase = await createClient();
   const [{ data: categories }, targets] = await Promise.all([
@@ -21,7 +21,7 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
       <PageTitle>お知らせを作成</PageTitle>
       <Notice error={error} />
       <AnnouncementComposer
-        fields={<AnnouncementFields categories={categories ?? []} />}
+        fields={<AnnouncementFields categories={categories ?? []} allowImmediate={me.role === 'admin'} />}
         targets={
         <Card className="space-y-3">
           <h2 className="font-bold">宛先</h2>

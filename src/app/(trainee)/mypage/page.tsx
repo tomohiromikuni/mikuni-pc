@@ -1,4 +1,6 @@
+import { PushSetup } from '@/components/PushSetup';
 import { Button, Card, LinkButton, PageTitle } from '@/components/ui';
+import { env } from '@/lib/env';
 import { requireTrainee } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
@@ -48,7 +50,11 @@ export default async function MyPage() {
           <br />
           <strong>Android：</strong>Chromeで開き、右上の「︙」→「ホーム画面に追加」
         </p>
-        <p className="muted text-xs">ホーム画面から開くと、アプリのように使えます（通知機能は開発段階5で追加予定）。</p>
+        <p className="muted text-xs">ホーム画面から開くと、アプリのように使えます。</p>
+      </Card>
+      <Card className="space-y-2">
+        <h2 className="font-bold">通知</h2>
+        <PushSetup vapidKey={env.vapidPublicKey()} />
       </Card>
       <div className="flex flex-col gap-3">
         <LinkButton href="/password" variant="secondary">パスワードを変更</LinkButton>

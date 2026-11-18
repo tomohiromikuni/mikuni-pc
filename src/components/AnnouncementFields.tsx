@@ -2,7 +2,7 @@ import { Field } from '@/components/ui';
 
 type Cat = { id: string; name: string };
 
-export function AnnouncementFields({ categories, values = {} }: { categories: Cat[]; values?: { title?: string; body?: string; priority?: string; category_id?: string | null } }) {
+export function AnnouncementFields({ categories, values = {}, allowImmediate = false }: { categories: Cat[]; values?: { title?: string; body?: string; priority?: string; category_id?: string | null }; allowImmediate?: boolean }) {
   return (
     <>
       <Field label="タイトル（必須）"><input name="title" defaultValue={values.title} required maxLength={200} /></Field>
@@ -25,6 +25,16 @@ export function AnnouncementFields({ categories, values = {} }: { categories: Ca
           </div>
         </fieldset>
       </div>
+      {allowImmediate && (
+        <label className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-normal text-red-900">
+          <input type="checkbox" name="notify_immediately" className="mt-1" />
+          <span>
+            <strong>優先度が「緊急」のとき、夜間・休日でもすぐに通知する</strong>
+            <br />
+            災害による休講など、本当に急ぎのときだけ使ってください（管理者のみ）。
+          </span>
+        </label>
+      )}
     </>
   );
 }

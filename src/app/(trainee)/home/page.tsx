@@ -3,7 +3,9 @@ import { AnnouncementList } from '@/components/AnnouncementList';
 import { Card, PriorityBadge } from '@/components/ui';
 import { requireTrainee } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
+import { PushSetup } from '@/components/PushSetup';
 import { SurveyItem } from '@/components/SurveyItem';
+import { env } from '@/lib/env';
 import { listMyAnnouncements } from '@/lib/trainee-data';
 import { listMySurveys } from '@/lib/trainee-surveys';
 
@@ -19,6 +21,8 @@ export default async function HomePage() {
       <p className="text-lg">
         <strong>{me.full_name}</strong> さん、こんにちは
       </p>
+
+      <PushSetup vapidKey={env.vapidPublicKey()} compact />
 
       {alerts.length > 0 && (
         <section aria-label="重要なお知らせ" className="space-y-2">

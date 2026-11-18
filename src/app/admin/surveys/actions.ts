@@ -112,3 +112,11 @@ export async function deleteSurvey(id: string) {
   revalidatePath('/admin/surveys');
   redirect('/admin/surveys?message=' + encodeURIComponent('削除しました'));
 }
+
+export async function remindSurvey(id: string) {
+  await requirePerm('survey');
+  const supabase = await createClient();
+  const { data: n, error } = await supabase.rpc('remind_survey', { p_id: id });
+  if (error) redirect(`/admin/surveys/${id}?error=` + encodeURIComponent(error.message));
+  redirect(`/admin/surveys/${id}?message=` + encodeURIComponent(`未回答の${n}人に再通知しました（時間外の場合は翌朝に届きます）`));
+}

@@ -8,7 +8,7 @@ import { Button, Card, Notice, PageTitle, PriorityBadge, type Flash } from '@/co
 import { requirePerm } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
-import { cancelSchedule, deleteAnnouncement, editAnnouncement, publishNow } from '../actions';
+import { cancelSchedule, deleteAnnouncement, editAnnouncement, publishNow, remindAnnouncement } from '../actions';
 
 export default async function AdminAnnouncementDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Flash & { filter?: string }> }) {
   const me = await requirePerm('announce');
@@ -86,7 +86,12 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
               </li>
             ))}
           </ul>
-          <p className="muted mt-2 text-xs">表示されるのは、あなたの担当範囲の訓練生だけです。未読者への再通知は通知機能（開発段階5）で追加します。</p>
+          {readCount < recipients.length && (
+            <form action={remindAnnouncement.bind(null, id)} className="mt-3">
+              <Button type="submit" variant="secondary">未読の人に再通知する</Button>
+            </form>
+          )}
+          <p className="muted mt-2 text-xs">表示されるのは、あなたの担当範囲の訓練生だけです。</p>
         </Card>
       )}
 

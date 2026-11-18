@@ -21,6 +21,7 @@ export async function saveAnnouncementDraft(f: FormData): Promise<DraftResult> {
   const body = String(f.get('body') ?? '').trim();
   const priority = String(f.get('priority') ?? 'normal');
   const categoryId = String(f.get('category_id') ?? '') || null;
+  const notifyNow = f.get('notify_immediately') === 'on' && priority === 'urgent' && me.role === 'admin';
   const mode = String(f.get('mode') ?? 'now');
   const publishAt = jstLocalToIso(String(f.get('publish_at') ?? ''));
   const targets = parseTargets(f);
@@ -33,7 +34,7 @@ export async function saveAnnouncementDraft(f: FormData): Promise<DraftResult> {
   const supabase = await createClient();
   const { data: a, error } = await supabase
     .from('announcements')
-    .insert({ org_id: me.org_id, title, body, priority, category_id: categoryId, created_by: me.id })
+    .insert({ org_id: me.org_id, title, body, priority, category_id: categoryId, created_by: me.id, notify_immediately: notifyNow })
     .select('id')
     .single();
   if (error || !a) return { error: '保存できませんでした：' + error?.message };
@@ -106,4 +107,12 @@ export async function deleteAnnouncement(id: string) {
   await supabase.from('announcements').delete().eq('id', id);
   revalidatePath('/admin/announcements');
   redirect('/admin/announcements?message=' + encodeURIComponent('削除しました'));
+}
+
+export async function remindAnnouncement(id: string) {
+  await requirePerm('announce');
+  const supabase = await createClient();
+  const { data: n, error } = await supabase.rpc('remind_announcement', { p_id: id });
+  if (error) redirect(`/admin/announcements/${id}?error=` + encodeURIComponent(error.message));
+  redirect(`/admin/announcements/${id}?message=` + encodeURIComponent(`未読の${n}人に再通知しました（時間外の場合は翌朝に届きます）`));
 }

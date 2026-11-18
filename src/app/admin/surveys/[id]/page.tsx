@@ -5,7 +5,7 @@ import { requirePerm } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { answerText, loadSurveyResults } from '@/lib/surveys';
-import { deleteSurvey, publishSurvey, setSurveyClosed } from '../actions';
+import { deleteSurvey, publishSurvey, remindSurvey, setSurveyClosed } from '../actions';
 
 const BAR_COLORS = ['bg-brand-500', 'bg-red-500', 'bg-amber-400', 'bg-sky-500', 'bg-violet-500', 'bg-pink-500'];
 
@@ -57,7 +57,11 @@ export default async function SurveyDetail({ params, searchParams }: { params: P
                     <li key={p.traineeId}><Link href={`/admin/trainees/${p.traineeId}`} className="rounded-full bg-red-50 px-3 py-1 text-red-800 hover:underline">{p.name}</Link></li>
                   ))}
                 </ul>
-                <p className="muted mt-2 text-xs">未回答者への再通知は、通知機能の設定後に使えます。</p>
+                {s.status === 'published' && (
+                  <form action={remindSurvey.bind(null, id)} className="mt-3">
+                    <Button type="submit" variant="secondary">未回答の人に再通知する</Button>
+                  </form>
+                )}
               </div>
             )}
           </Card>

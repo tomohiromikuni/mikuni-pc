@@ -9,6 +9,7 @@ const ITEMS = [
   { href: '/admin/surveys', label: '出欠・アンケート' },
   { href: '/admin/trainees', label: '訓練生' },
   { href: '/admin/courses', label: 'コース・クラス', adminOnly: true },
+  { href: '/admin/settings', label: '通知と設定' },
 ];
 
 export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
