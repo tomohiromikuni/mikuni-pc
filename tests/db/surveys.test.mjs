@@ -95,3 +95,13 @@ test('スタッフが設定値などを細工しても、下書きを直接「�
   const [row] = await sudo('select status from surveys where id = $1', [id]);
   assert.equal(row.status, 'draft');
 });
+
+test('一覧の目印：今月の欠席・遅刻数は担当範囲の訓練生だけ、訓練生は使えない', async () => {
+  const { U } = W;
+  const rows = await as(U.staff1, 'select * from trainee_overview()');
+  const x = rows.find((r) => r.trainee_id === U.x);
+  assert.ok(x);
+  assert.equal(x.late_month, 1); // 遅刻で回答済み（前のテスト）
+  assert.ok(!rows.some((r) => r.trainee_id === U.y)); // 担当外
+  assert.equal((await as(U.x, 'select * from trainee_overview()')).length, 0);
+});

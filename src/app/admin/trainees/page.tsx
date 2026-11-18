@@ -1,122 +1,229 @@
 import Link from 'next/link';
-import { Card, LinkButton, Notice, PageTitle, type Flash } from '@/components/ui';
+import { LinkButton, Notice, type Flash } from '@/components/ui';
 import { hasPerm, requireStaff } from '@/lib/auth';
-import { getClassOptions } from '@/lib/classes';
 import { formatDate } from '@/lib/format';
+import { formatPhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 
-type Search = Flash & { q?: string; course?: string; class?: string; status?: string };
+type Search = Flash & { course?: string; class?: string; status?: string; q?: string };
 
-const STATUS_COLOR: Record<AccountStatus, string> = {
+type Person = {
+  id: string;
+  name: string;
+  kana: string;
+  status: AccountStatus;
+  phone: string;
+  courseId: string;
+  classId: string;
+  className: string;
+  push: boolean;
+  absent: number;
+};
+
+const STATUS_STYLE: Record<AccountStatus, string> = {
   active: 'bg-brand-100 text-brand-700',
-  invited: 'bg-sky-100 text-sky-800',
+  invited: 'bg-amber-50 text-amber-800',
   suspended: 'bg-gray-200 text-gray-700',
 };
 
+/** 管理画面「訓練生」一覧（デザイン案B：期生ごとのカード表示） */
 export default async function TraineesPage({ searchParams }: { searchParams: Promise<Search> }) {
   await requireStaff();
   const sp = await searchParams;
   const supabase = await createClient();
-  const [classes, canManage, { data }] = await Promise.all([
-    getClassOptions(),
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+
+  const [canManage, { data: courses }, { data: trainees }, overview] = await Promise.all([
     hasPerm('manage_trainees'),
+    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(id, name, archived)').order('starts_on', { ascending: false, nullsFirst: false }),
     supabase
       .from('profiles')
-      .select('id, full_name, full_name_kana, status, trainee_details(expected_completion_on, phone), enrollments(class_id, ended_on, classes(name, course_id, courses(name)))')
+      .select('id, full_name, full_name_kana, status, trainee_details(phone), enrollments(ended_on, class_id, classes(name, course_id))')
       .eq('role', 'trainee')
       .order('full_name_kana'),
+    // 通知・欠席の目印（データベースの追加設定前はなしで表示）
+    supabase.rpc('trainee_overview').then((r) => (r.error ? [] : (r.data as { trainee_id: string; has_push: boolean; absent_month: number }[]))),
   ]);
+  const ov = new Map(overview.map((o) => [o.trainee_id, o]));
 
-  // 規模（数百人以内）を考え、絞り込みは取得後に行う（見える範囲は権限ルールで制限済み）
-  const q = (sp.q ?? '').trim().toLowerCase();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (data ?? []).map((t: any) => {
+  const people: Person[] = ((trainees ?? []) as any[]).map((t) => {
     const cur = (t.enrollments ?? []).find((e: { ended_on: string | null }) => !e.ended_on);
+    const o = ov.get(t.id);
     return {
-      id: t.id as string,
-      name: t.full_name as string,
-      kana: t.full_name_kana as string,
-      status: t.status as AccountStatus,
-      completion: t.trainee_details?.expected_completion_on as string | null,
-      phone: (t.trainee_details?.phone ?? '') as string,
-      classId: cur?.class_id as string | undefined,
-      courseId: cur?.classes?.course_id as string | undefined,
-      label: cur ? `${cur.classes.courses.name} / ${cur.classes.name}` : '未所属',
+      id: t.id,
+      name: t.full_name,
+      kana: t.full_name_kana,
+      status: t.status,
+      phone: t.trainee_details?.phone ?? '',
+      courseId: cur?.classes?.course_id ?? '',
+      classId: cur?.class_id ?? '',
+      className: cur?.classes?.name ?? '',
+      push: !!o?.has_push,
+      absent: o?.absent_month ?? 0,
     };
-  }).filter((r) =>
-    (!q || r.name.toLowerCase().includes(q) || r.kana.toLowerCase().includes(q) || (q.replace(/\D/g, '').length >= 3 && r.phone.includes(q.replace(/\D/g, '')))) &&
-    (!sp.course || r.courseId === sp.course) &&
-    (!sp.class || r.classId === sp.class) &&
-    (!sp.status || r.status === sp.status),
+  });
+
+  // 期生の一覧：受講中（新しい順）と修了した期に分ける
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allCourses = ((courses ?? []) as any[]).map((c) => ({
+    ...c,
+    count: people.filter((p) => p.courseId === c.id && p.status !== 'suspended').length,
+    finished: c.archived || (c.ends_on && c.ends_on < today),
+  }));
+  const current = allCourses.filter((c) => !c.finished);
+  const finished = allCourses.filter((c) => c.finished);
+  const unassigned = people.filter((p) => !p.courseId && p.status !== 'suspended').length;
+
+  const q = (sp.q ?? '').trim();
+  const qDigits = q.replace(/\D/g, '');
+  const searching = q.length > 0;
+  // 選んでいる期：指定がなければ受講中の一番新しい期
+  const selected = searching ? 'all' : sp.course ?? current[0]?.id ?? 'all';
+  const course = allCourses.find((c) => c.id === selected);
+
+  const inCourse = people.filter((p) =>
+    selected === 'all' ? true : selected === 'none' ? !p.courseId : p.courseId === selected,
   );
-  const courses = [...new Map(classes.map((c) => [c.courseId, c.courseName])).entries()];
+  const shown = inCourse
+    .filter((p) => !searching || p.name.includes(q) || p.kana.includes(q) || (qDigits.length >= 3 && p.phone.includes(qDigits)))
+    .filter((p) => !sp.class || p.classId === sp.class)
+    .filter((p) => (sp.status ? p.status === sp.status : p.status !== 'suspended'));
+  const waiting = inCourse.filter((p) => p.status === 'invited').length;
+  const suspended = inCourse.filter((p) => p.status === 'suspended').length;
+  const classes = (course?.classes ?? []).filter((k: { archived: boolean }) => !k.archived);
+
+  const href = (p: Partial<Search>) => {
+    const u = new URLSearchParams();
+    for (const [k, v] of Object.entries({ course: selected === 'all' && !sp.course ? undefined : selected, ...p })) if (v) u.set(k, v);
+    return `/admin/trainees${u.size ? '?' + u : ''}`;
+  };
+  const chip = (active: boolean) => `shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-bold ${active ? 'border-[#1f2a26] bg-[#1f2a26] text-white' : 'surface'}`;
+  const side = (active: boolean) => `flex items-center justify-between rounded-xl px-3 py-2.5 font-bold ${active ? 'surface border-2 border-brand-600' : 'hover:bg-black/5'}`;
 
   return (
-    <div className="space-y-4">
-      <PageTitle
-        action={
-          canManage && (
-            <div className="flex flex-wrap gap-2">
-              <LinkButton href="/admin/join-qr" variant="secondary">登録用QR（共通）</LinkButton>
-              <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
-              <LinkButton href="/admin/trainees/new">＋ 訓練生を登録</LinkButton>
-            </div>
-          )
-        }
-      >
-        訓練生
-      </PageTitle>
-      <Notice error={sp.error} message={sp.message} />
-      <Card>
-        <form className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-end">
-          <input name="q" defaultValue={sp.q} placeholder="氏名・フリガナ・携帯番号で検索" aria-label="検索" />
-          <select name="course" defaultValue={sp.course ?? ''} aria-label="コース">
-            <option value="">すべてのコース</option>
-            {courses.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-          <select name="class" defaultValue={sp.class ?? ''} aria-label="クラス">
-            <option value="">すべてのクラス</option>
-            {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-          <select name="status" defaultValue={sp.status ?? ''} aria-label="利用状況">
-            <option value="">すべての状態</option>
-            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <button className="min-h-11 rounded-xl bg-brand-600 px-5 font-bold text-white">絞り込み</button>
-        </form>
-      </Card>
-      <p className="muted text-sm">{rows.length} 人</p>
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[640px] text-left">
-          <thead className="muted text-sm">
-            <tr className="border-b line">
-              <th className="px-4 py-2">氏名</th>
-              <th className="px-4 py-2">コース / クラス</th>
-              <th className="px-4 py-2">修了予定日</th>
-              <th className="px-4 py-2">状態</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y line">
-            {rows.map((r) => (
-              <tr key={r.id} className="hover:bg-black/5">
-                <td className="px-4 py-2">
-                  <Link href={`/admin/trainees/${r.id}`} className="font-bold text-brand-700 underline-offset-2 hover:underline">{r.name}</Link>
-                  <span className="muted block text-xs">{r.kana}</span>
-                </td>
-                <td className="px-4 py-2 text-sm">{r.label}</td>
-                <td className="px-4 py-2 text-sm">{formatDate(r.completion)}</td>
-                <td className="px-4 py-2">
-                  <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${STATUS_COLOR[r.status]}`}>{STATUS_LABEL[r.status]}</span>
-                </td>
-              </tr>
+    <div className="flex flex-wrap gap-6">
+      {/* 期生の一覧 */}
+      <nav aria-label="期生" className="w-full shrink-0 space-y-1 md:w-56">
+        <p className="muted px-2 pb-1 text-[13px] font-bold">期生</p>
+        {current.map((c) => (
+          <Link key={c.id} href={`/admin/trainees?course=${c.id}`} className={side(selected === c.id)}>
+            <span className="truncate">{c.name}</span>
+            <span className="muted ml-2 shrink-0 text-sm">{c.count}</span>
+          </Link>
+        ))}
+        {unassigned > 0 && (
+          <Link href="/admin/trainees?course=none" className={`${side(selected === 'none')} text-amber-800`}>
+            <span>未所属</span>
+            <span className="text-sm">{unassigned}</span>
+          </Link>
+        )}
+        <Link href="/admin/trainees?course=all" className={side(selected === 'all')}>
+          <span>すべての訓練生</span>
+          <span className="muted text-sm">{people.filter((p) => p.status !== 'suspended').length}</span>
+        </Link>
+        {finished.length > 0 && (
+          <>
+            <p className="muted px-2 pt-4 pb-1 text-[13px] font-bold">修了した期</p>
+            {finished.map((c) => (
+              <Link key={c.id} href={`/admin/trainees?course=${c.id}`} className={`${side(selected === c.id)} muted font-normal`}>
+                <span className="truncate">{c.name}</span>
+                <span className="ml-2 shrink-0 text-sm">{c.count}</span>
+              </Link>
             ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="muted px-4 py-6 text-center">該当する訓練生はいません</td></tr>
+          </>
+        )}
+        {current.length === 0 && finished.length === 0 && (
+          <p className="muted px-2 text-sm">
+            まだ期生がありません。<Link href="/admin/courses" className="text-brand-700 underline">コース・クラス</Link>で登録してください。
+          </p>
+        )}
+      </nav>
+
+      {/* 選んだ期の訓練生 */}
+      <section className="min-w-0 flex-[999_1_560px] space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[22px] font-bold">
+              {searching ? `「${q}」の検索結果` : selected === 'all' ? 'すべての訓練生' : selected === 'none' ? '未所属' : course?.name}
+            </h1>
+            {course && !searching && (
+              <p className="muted text-[13px]">
+                {formatDate(course.starts_on)} 〜 {formatDate(course.ends_on)} ・ {course.count}人
+                {classes.length > 0 &&
+                  `（${classes.map((k: { id: string; name: string }) => `${k.name} ${inCourse.filter((p) => p.classId === k.id && p.status !== 'suspended').length}`).join(' / ')}）`}
+              </p>
             )}
-          </tbody>
-        </table>
-      </Card>
+          </div>
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              <LinkButton href="/admin/join-qr" variant="secondary">登録用QR</LinkButton>
+              <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
+              <LinkButton href="/admin/trainees/new">＋ 登録</LinkButton>
+            </div>
+          )}
+        </div>
+        <Notice error={sp.error} message={sp.message} />
+
+        <div className="flex flex-wrap items-center gap-2">
+          {classes.length > 0 && (
+            <>
+              <Link href={href({ class: undefined, status: sp.status })} className={chip(!sp.class)}>全クラス</Link>
+              {classes.map((k: { id: string; name: string }) => (
+                <Link key={k.id} href={href({ class: k.id, status: sp.status })} className={chip(sp.class === k.id)}>{k.name}</Link>
+              ))}
+            </>
+          )}
+          {waiting > 0 && (
+            <Link
+              href={href({ class: sp.class, status: sp.status === 'invited' ? undefined : 'invited' })}
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-bold ${sp.status === 'invited' ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
+            >
+              登録待ち {waiting}人
+            </Link>
+          )}
+          {suspended > 0 && (
+            <Link href={href({ class: sp.class, status: sp.status === 'suspended' ? undefined : 'suspended' })} className={chip(sp.status === 'suspended')}>
+              利用停止 {suspended}人
+            </Link>
+          )}
+          <form action="/admin/trainees" className="ml-auto w-full sm:w-64">
+            <input name="q" defaultValue={sp.q} placeholder="名前・フリガナ・携帯番号で検索" aria-label="訓練生を検索" />
+          </form>
+        </div>
+
+        {shown.length === 0 ? (
+          <p className="muted py-10 text-center">該当する訓練生はいません</p>
+        ) : (
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+            {shown.map((p) => (
+              <li key={p.id}>
+                <Link href={`/admin/trainees/${p.id}`} className="surface flex h-full gap-3 rounded-2xl border p-3.5 hover:border-brand-500">
+                  <span
+                    aria-hidden
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-bold ${p.status === 'active' ? 'bg-brand-600 text-white' : 'bg-black/10 text-[#5d6b66]'}`}
+                  >
+                    {p.name.trim()[0] ?? '?'}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">{p.name}</span>
+                    <span className="muted block truncate text-xs">
+                      {[p.className || (selected === 'all' ? '未所属' : ''), formatPhone(p.phone)].filter(Boolean).join(' ・ ')}
+                    </span>
+                    <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] font-bold">
+                      <span className={`rounded-md px-1.5 py-px ${STATUS_STYLE[p.status]}`}>{p.status === 'invited' ? '登録待ち' : STATUS_LABEL[p.status]}</span>
+                      {p.status === 'active' && p.push && <span className="rounded-md bg-black/5 px-1.5 py-px">通知オン</span>}
+                      {p.absent >= 3 && <span className="rounded-md bg-red-50 px-1.5 py-px text-red-800">今月 欠席{p.absent}</span>}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted text-xs">表示されるのは、あなたの担当範囲の訓練生だけです。「今月 欠席」は出欠確認の回答から数えています（3回以上で表示）。</p>
+      </section>
     </div>
   );
 }
