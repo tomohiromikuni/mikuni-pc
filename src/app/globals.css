@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #ecfdf7;
+  --color-brand-100: #d1faec;
+  --color-brand-500: #12a37f;
+  --color-brand-600: #0b8a6b;
+  --color-brand-700: #0a6f57;
+  --font-sans: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, system-ui, sans-serif;
+}
+
+:root {
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --text: #1f2a26;
+  --muted: #5d6b66;
+  --border: #dfe5e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111715;
+    --surface: #1a2320;
+    --text: #e8efec;
+    --muted: #9aaba5;
+    --border: #2c3833;
+  }
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.7;
+}
+.surface { background: var(--surface); border-color: var(--border); }
+.muted { color: var(--muted); }
+.line { border-color: var(--border); }
+
+input, select, textarea {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+  font-size: 16px; /* iPhone で入力時に拡大されないように */
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--color-brand-500); outline-offset: 1px; }
+input[type="checkbox"], input[type="radio"] { width: 1.25rem; height: 1.25rem; accent-color: var(--color-brand-600); }
+label { font-weight: 600; }
