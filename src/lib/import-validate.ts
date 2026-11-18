@@ -1,6 +1,7 @@
 // Excel・CSV 一括登録：取り込み前のチェック（画面とテストの両方で使う純粋な関数）
+import { normalizePhone } from './phone.ts';
 
-export const IMPORT_COLUMNS = ['氏名', 'フリガナ', 'メールアドレス', '電話番号', 'コース', 'クラス', '入校日', '修了予定日'] as const;
+export const IMPORT_COLUMNS = ['氏名', 'フリガナ', '電話番号', 'メールアドレス', 'コース', 'クラス', '入校日', '修了予定日'] as const;
 
 export type ImportClass = { id: string; courseName: string; name: string };
 
@@ -58,7 +59,7 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
   const alias: Record<string, (typeof IMPORT_COLUMNS)[number]> = {
     氏名: '氏名', 名前: '氏名', フリガナ: 'フリガナ', ふりがな: 'フリガナ', カナ: 'フリガナ',
     メールアドレス: 'メールアドレス', メール: 'メールアドレス', email: 'メールアドレス', Email: 'メールアドレス',
-    電話番号: '電話番号', 電話: '電話番号', 携帯番号: '電話番号',
+    電話番号: '電話番号', 電話: '電話番号', 携帯番号: '電話番号', 携帯電話: '電話番号', 携帯: '電話番号',
     コース: 'コース', コース名: 'コース', 所属コース: 'コース',
     クラス: 'クラス', クラス名: 'クラス', 所属クラス: 'クラス',
     入校日: '入校日', コース開始日: '入校日', 開始日: '入校日',
@@ -69,7 +70,7 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
     const key = alias[n];
     if (key && map[key] === undefined) map[key] = i;
   });
-  const missing = (['氏名', 'メールアドレス'] as const).filter((k) => map[k] === undefined);
+  const missing = (['氏名', '電話番号'] as const).filter((k) => map[k] === undefined);
   return { map, missing };
 }
 
@@ -77,7 +78,7 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
 export function validateRows(
   sheet: Cell[][],
   classes: ImportClass[],
-  existingEmails: Set<string> = new Set(),
+  existing: { emails?: Set<string>; phones?: Set<string> } = {},
 ): { rows: ImportRow[]; headerError?: string } {
   const nonEmpty = sheet.filter((r) => r.some((c) => clean(c) !== ''));
   if (nonEmpty.length === 0) return { rows: [], headerError: 'ファイルにデータがありません' };
@@ -87,6 +88,9 @@ export function validateRows(
 
   const norm = (s: string) => s.normalize('NFKC').replace(/\s/g, '').toLowerCase();
   const seen = new Map<string, number>();
+  const seenPhone = new Map<string, number>();
+  const existingEmails = existing.emails ?? new Set<string>();
+  const existingPhones = existing.phones ?? new Set<string>();
   const rows: ImportRow[] = [];
 
   sheet.forEach((r, i) => {
@@ -101,12 +105,21 @@ export function validateRows(
     const enrolled = parseDate(get('入校日') ?? '');
     const completion = parseDate(get('修了予定日') ?? '');
 
+    const phoneRaw = clean(get('電話番号'));
+    const phone = normalizePhone(phoneRaw);
+
     if (!full_name) errors.push('氏名が空です');
-    if (!email) errors.push('メールアドレスが空です');
-    else if (!EMAIL_RE.test(email)) errors.push('メールアドレスの形式が正しくありません');
-    else if (existingEmails.has(email)) errors.push('このメールアドレスはすでに登録されています');
-    else if (seen.has(email)) errors.push(`メールアドレスが${seen.get(email)}行目と重複しています`);
-    if (email) seen.set(email, i + 1);
+    if (!phoneRaw) errors.push('携帯番号が空です');
+    else if (!phone) errors.push('携帯番号の形式が正しくありません（例：090-1234-5678）');
+    else if (existingPhones.has(phone)) errors.push('この携帯番号はすでに登録されています');
+    else if (seenPhone.has(phone)) errors.push(`携帯番号が${seenPhone.get(phone)}行目と重複しています`);
+    if (phone) seenPhone.set(phone, i + 1);
+    if (email) {
+      if (!EMAIL_RE.test(email)) errors.push('メールアドレスの形式が正しくありません');
+      else if (existingEmails.has(email)) errors.push('このメールアドレスはすでに登録されています');
+      else if (seen.has(email)) errors.push(`メールアドレスが${seen.get(email)}行目と重複しています`);
+      seen.set(email, i + 1);
+    }
 
     let class_id = '';
     let class_label = '未所属';
@@ -129,7 +142,7 @@ export function validateRows(
       full_name,
       full_name_kana: clean(get('フリガナ')),
       email,
-      phone: clean(get('電話番号')),
+      phone: phone ?? phoneRaw,
       class_id,
       class_label,
       enrolled_on: enrolled ?? '',

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
-import { findExistingEmails, importTrainees, type ImportResult } from '@/app/admin/trainees/actions';
+import { findExisting, importTrainees, type ImportResult } from '@/app/admin/trainees/actions';
 import { Button, Card, buttonClass } from '@/components/ui';
 import { templateCsv, validateRows, type ImportClass, type ImportRow } from '@/lib/import-validate';
 
@@ -42,8 +42,8 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
       const sheet = await readFile(file);
       const first = validateRows(sheet as never, classes);
       if (first.headerError) throw new Error(first.headerError);
-      const existing = new Set(await findExistingEmails(first.rows.map((r) => r.email)));
-      const { rows } = validateRows(sheet as never, classes, existing);
+      const ex = await findExisting(first.rows.map((r) => r.email), first.rows.map((r) => r.phone));
+      const { rows } = validateRows(sheet as never, classes, { emails: new Set(ex.emails), phones: new Set(ex.phones) });
       if (rows.length > 500) throw new Error('一度に登録できるのは500人までです。ファイルを分けてください');
       setStep({ kind: 'preview', fileName: file.name, rows });
     } catch (e) {
@@ -110,7 +110,7 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="muted">
               <tr className="border-b line">
-                <th className="px-3 py-2">行</th><th className="px-3 py-2">氏名</th><th className="px-3 py-2">メール</th>
+                <th className="px-3 py-2">行</th><th className="px-3 py-2">氏名</th><th className="px-3 py-2">携帯番号</th>
                 <th className="px-3 py-2">所属</th><th className="px-3 py-2">期間</th><th className="px-3 py-2">チェック結果</th>
               </tr>
             </thead>
@@ -119,7 +119,7 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
                 <tr key={r.line} className={r.errors.length ? 'bg-red-50 text-red-950' : ''}>
                   <td className="px-3 py-2">{r.line}</td>
                   <td className="px-3 py-2">{r.full_name}<span className="block text-xs opacity-70">{r.full_name_kana}</span></td>
-                  <td className="px-3 py-2 break-all">{r.email}</td>
+                  <td className="px-3 py-2 break-all">{r.phone}{r.email && <span className="block text-xs opacity-70">{r.email}</span>}</td>
                   <td className="px-3 py-2">{r.class_label}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.enrolled_on || '—'} 〜 {r.expected_completion_on || '—'}</td>
                   <td className="px-3 py-2">{r.errors.length ? r.errors.map((e) => <div key={e}>⚠ {e}</div>) : <span className="font-bold text-brand-700">OK</span>}</td>
@@ -138,8 +138,8 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
       <Card className="space-y-3">
         <h2 className="font-bold">1. テンプレートに入力する</h2>
         <p className="text-sm">
-          見出しは「{['氏名', 'フリガナ', 'メールアドレス', '電話番号', 'コース', 'クラス', '入校日', '修了予定日'].join('・')}」です。
-          氏名とメールアドレスは必須です。コース・クラスは「コース・クラス」画面に登録した名前と同じにしてください。
+          見出しは「{['氏名', 'フリガナ', '電話番号', 'メールアドレス', 'コース', 'クラス', '入校日', '修了予定日'].join('・')}」です。
+          氏名と電話番号（携帯）は必須、メールアドレスは任意です。コース・クラスは「コース・クラス」画面に登録した名前と同じにしてください。
         </p>
         <Button variant="secondary" onClick={downloadTemplate}>テンプレート（CSV）をダウンロード</Button>
       </Card>

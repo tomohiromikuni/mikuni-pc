@@ -38,7 +38,8 @@ export async function setupWorld(tag) {
     const [{ id }] = await sudo('insert into auth.users (email) values ($1) returning id', [`${key}-${tag}@example.com`]);
     await sudo('insert into profiles (id, org_id, role, status, full_name, terms_agreed_at) values ($1,$2,$3,$4,$5, now())', [id, org, role, status, name]);
     if (role === 'trainee') {
-      await sudo('insert into trainee_details (profile_id, email, phone) values ($1,$2,$3)', [id, `${key}-${tag}@example.com`, '090-0000-0000']);
+      const phone = '090' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+      await sudo('insert into trainee_details (profile_id, email, phone) values ($1,$2,$3)', [id, `${key}-${tag}@example.com`, phone]);
       if (classId) await sudo('insert into enrollments (org_id, trainee_id, class_id) values ($1,$2,$3)', [org, id, classId]);
     }
     U[key] = id;

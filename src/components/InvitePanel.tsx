@@ -11,13 +11,13 @@ export function InvitePanel({ issue, name, alreadyActive }: { issue: () => Promi
     <div className="space-y-3">
       <p className="text-sm">
         {alreadyActive
-          ? 'すでに利用中です。パスワードを忘れた場合などは、招待URLを再発行すると本人がパスワードを設定し直せます。'
+          ? 'パスワードを忘れた場合は、ここで再設定用のQRを発行して本人に読み取ってもらうと、新しいパスワードを決められます。'
           : '招待URLまたはQRコードを本人に渡してください。開くとパスワードを設定して利用を始められます。'}
         <br />
         有効期限は7日間・1回限りです。再発行すると以前のURLは使えなくなります。
       </p>
       <form action={action}>
-        <Button type="submit" disabled={pending}>{pending ? '発行中…' : state && 'url' in state ? '再発行する' : '招待URLを発行'}</Button>
+        <Button type="submit" disabled={pending}>{pending ? '発行中…' : state && 'url' in state ? '再発行する' : alreadyActive ? 'パスワード再設定用のQRを発行' : '招待URLを発行'}</Button>
       </form>
       {state && 'error' in state && <p className="font-semibold text-red-700">{state.error}</p>}
       {state && 'url' in state && (

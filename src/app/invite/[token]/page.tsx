@@ -1,6 +1,7 @@
 import { AuthShell } from '@/components/AuthShell';
 import { Button, Field, LinkButton, Notice, type Flash } from '@/components/ui';
 import { findInvitation } from '@/lib/invitation-lookup';
+import { formatPhone, isPhoneLoginEmail } from '@/lib/phone';
 import { acceptInvitation } from './actions';
 
 export default async function InvitePage({
@@ -29,12 +30,12 @@ export default async function InvitePage({
       <p>
         <strong className="text-lg">{found.profile.full_name}</strong> さん、ようこそ。
         <br />
-        ログインに使うパスワードを決めてください。
+        ログインに使うパスワードを決めてください（以前のパスワードは使えなくなります）。
       </p>
       <Notice error={error} />
       <form action={acceptInvitation.bind(null, token)} className="space-y-4">
-        <Field label="メールアドレス（ログインID）">
-          <input value={found.email} readOnly className="opacity-70" />
+        <Field label={isPhoneLoginEmail(found.email) ? '携帯番号（ログインID）' : 'メールアドレス（ログインID）'}>
+          <input value={isPhoneLoginEmail(found.email) ? formatPhone(found.email.slice(1, found.email.indexOf('@'))) : found.email} readOnly className="opacity-70" />
         </Field>
         <Field label="パスワード" hint="8文字以上。ほかのサービスと同じものは避けてください">
           <input name="password" type="password" autoComplete="new-password" minLength={8} required />

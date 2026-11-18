@@ -6,14 +6,22 @@ import { z } from 'zod';
 import { requireAdmin, requirePerm } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { INVITE_DAYS, newInviteToken } from '@/lib/invite';
+import { isPhoneLoginEmail, normalizePhone, phoneToLoginEmail } from '@/lib/phone';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const traineeSchema = z.object({
   full_name: z.string().trim().min(1, '氏名を入力してください').max(100),
   full_name_kana: z.string().trim().max(100),
-  email: z.string().trim().toLowerCase().pipe(z.email('メールアドレスの形式が正しくありません')),
-  phone: z.string().trim().max(20),
+  email: z.union([z.literal(''), z.string().trim().toLowerCase().pipe(z.email('メールアドレスの形式が正しくありません'))]).default(''),
+  phone: z.string().trim().transform((v, ctx) => {
+    const p = normalizePhone(v);
+    if (!p) {
+      ctx.addIssue({ code: 'custom', message: '携帯番号を正しく入力してください（例：090-1234-5678）' });
+      return z.NEVER;
+    }
+    return p;
+  }),
   class_id: z.string().trim(),
   enrolled_on: z.string().trim(),
   expected_completion_on: z.string().trim(),
@@ -34,11 +42,13 @@ type Me = { id: string; org_id: string; role: string };
 /** 訓練生を1人登録する（ログインアカウント → 本人の権限で各表へ）。失敗時は元に戻してエラー文を返す */
 async function createTraineeRecord(me: Me, v: TraineeValues): Promise<{ id?: string; error?: string }> {
   const admin = createAdminClient();
-  const { data: created, error: authErr } = await admin.auth.admin.createUser({ email: v.email, email_confirm: true });
+  // ログインID：メールアドレスがあればそれ、なければ携帯番号
+  const loginEmail = v.email || phoneToLoginEmail(v.phone);
+  const { data: created, error: authErr } = await admin.auth.admin.createUser({ email: loginEmail, email_confirm: true });
   if (authErr || !created.user) {
     return {
       error: /already|registered|exists/i.test(authErr?.message ?? '')
-        ? 'このメールアドレスはすでに登録されています'
+        ? v.email ? 'このメールアドレスはすでに登録されています' : 'この携帯番号はすでに登録されています'
         : '登録できませんでした：' + authErr?.message,
     };
   }
@@ -47,13 +57,13 @@ async function createTraineeRecord(me: Me, v: TraineeValues): Promise<{ id?: str
   const steps = [
     () => supabase.from('profiles').insert({ id, org_id: me.org_id, role: 'trainee', status: 'invited', full_name: v.full_name, full_name_kana: v.full_name_kana }),
     () => (v.class_id ? supabase.from('enrollments').insert({ org_id: me.org_id, trainee_id: id, class_id: v.class_id, started_on: v.enrolled_on || today() }) : Promise.resolve({ error: null })),
-    () => supabase.from('trainee_details').insert({ profile_id: id, email: v.email, phone: v.phone, enrolled_on: v.enrolled_on || null, expected_completion_on: v.expected_completion_on || null }),
+    () => supabase.from('trainee_details').insert({ profile_id: id, email: v.email || null, phone: v.phone, enrolled_on: v.enrolled_on || null, expected_completion_on: v.expected_completion_on || null }),
   ];
   for (const step of steps) {
     const { error } = await step();
     if (error) {
       await admin.auth.admin.deleteUser(id);
-      return { error: '登録できませんでした：' + error.message };
+      return { error: error.code === '23505' ? 'この携帯番号はすでに登録されています' : '登録できませんでした：' + error.message };
     }
   }
   return { id };
@@ -69,14 +79,17 @@ export async function createTrainee(f: FormData) {
   redirect(`/admin/trainees/${r.id}?message=` + encodeURIComponent('登録しました。次に招待URLを発行してください'));
 }
 
-/** 一括登録の確認画面用：すでに登録済みのメールアドレスを返す */
-export async function findExistingEmails(emails: string[]): Promise<string[]> {
+/** 一括登録の確認画面用：すでに登録済みのメールアドレス・携帯番号を返す */
+export async function findExisting(emails: string[], phones: string[]): Promise<{ emails: string[]; phones: string[] }> {
   await requirePerm('manage_trainees');
-  const list = [...new Set(emails.map((e) => e.toLowerCase()).filter(Boolean))].slice(0, 1000);
-  if (list.length === 0) return [];
+  const el = [...new Set(emails.map((e) => e.toLowerCase()).filter(Boolean))].slice(0, 1000);
+  const pl = [...new Set(phones.filter(Boolean))].slice(0, 1000);
   const admin = createAdminClient();
-  const { data } = await admin.from('trainee_details').select('email').in('email', list);
-  return (data ?? []).map((r) => r.email);
+  const [{ data: e }, { data: p }] = await Promise.all([
+    el.length ? admin.from('trainee_details').select('email').in('email', el) : Promise.resolve({ data: [] as { email: string }[] }),
+    pl.length ? admin.from('trainee_details').select('phone').in('phone', pl) : Promise.resolve({ data: [] as { phone: string }[] }),
+  ]);
+  return { emails: (e ?? []).map((r) => r.email), phones: (p ?? []).map((r) => r.phone) };
 }
 
 export type ImportInput = Omit<TraineeValues, never> & { line: number };
@@ -124,14 +137,20 @@ export async function updateTrainee(id: string, f: FormData) {
   const { error: e1 } = await supabase.from('profiles').update({ full_name: v.full_name, full_name_kana: v.full_name_kana }).eq('id', id);
   if (e1) back('error', '保存できませんでした：' + e1.message);
 
-  const { data: current } = await supabase.from('trainee_details').select('email').eq('profile_id', id).maybeSingle();
-  if (withContact && current && current.email !== v.email) {
+  const { data: current } = await supabase.from('trainee_details').select('email, phone').eq('profile_id', id).maybeSingle();
+  if (withContact && current) {
+    // ログインIDの付け替え：携帯番号でログインしている人は番号の変更に、メールの人はメールの変更に合わせる
     const admin = createAdminClient();
-    const { error } = await admin.auth.admin.updateUserById(id, { email: v.email, email_confirm: true });
-    if (error) back('error', 'メールアドレスを変更できませんでした：' + error.message);
+    const { data: u } = await admin.auth.admin.getUserById(id);
+    const login = u.user?.email ?? '';
+    const next = !login || isPhoneLoginEmail(login) ? phoneToLoginEmail(v.phone) : v.email || phoneToLoginEmail(v.phone);
+    if (next !== login) {
+      const { error } = await admin.auth.admin.updateUserById(id, { email: next, email_confirm: true });
+      if (error) back('error', /already|exists|registered/i.test(error.message) ? 'その携帯番号（メールアドレス）は別の人が使っています' : 'ログインIDを変更できませんでした：' + error.message);
+    }
   }
   const { error: e2 } = await supabase.from('trainee_details').update({
-    ...(withContact ? { email: v.email, phone: v.phone } : {}),
+    ...(withContact ? { email: v.email || null, phone: v.phone } : {}),
     enrolled_on: v.enrolled_on || null,
     expected_completion_on: v.expected_completion_on || null,
     updated_at: new Date().toISOString(),

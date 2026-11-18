@@ -20,7 +20,10 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
   return (
     <AuthShell title="パスワードの再設定">
       <Notice error={error} message={message} />
-      <p className="text-sm">登録しているメールアドレスを入力してください。再設定用のリンクをお送りします。</p>
+      <p className="rounded-xl bg-brand-50 p-3 text-sm text-brand-700">
+        <strong>携帯番号でログインしている訓練生の方へ：</strong>事務局にパスワードの再設定を依頼してください。その場で再設定用のQRコードをお渡しします。
+      </p>
+      <p className="text-sm">メールアドレスでログインしている方（スタッフ等）は、アドレスを入力してください。再設定用のリンクをお送りします。</p>
       <form action={sendReset} className="space-y-4">
         <Field label="メールアドレス">
           <input name="email" type="email" autoComplete="email" required />

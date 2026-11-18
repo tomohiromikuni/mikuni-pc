@@ -8,6 +8,7 @@ import { hasPerm, requireStaff } from '@/lib/auth';
 import { getClassOptions } from '@/lib/classes';
 import { formatDate, friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
+import { formatPhone } from '@/lib/phone';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { openChatWithTrainee } from '../../chat/actions';
 import { issueInvite, setTraineeSuspended, updateTrainee } from '../actions';
@@ -71,8 +72,8 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
           />
         ) : (
           <dl className="grid gap-2 sm:grid-cols-2">
-            {canPii && <div><dt className="muted text-sm">メール</dt><dd>{detail?.email}</dd></div>}
-            {canPii && <div><dt className="muted text-sm">電話</dt><dd>{detail?.phone || '—'}</dd></div>}
+            {canPii && <div><dt className="muted text-sm">メール</dt><dd>{detail?.email || '—'}</dd></div>}
+            {canPii && <div><dt className="muted text-sm">携帯番号</dt><dd>{formatPhone(detail?.phone) || '—'}</dd></div>}
             <div><dt className="muted text-sm">修了予定日</dt><dd>{formatDate(detail?.expected_completion_on)}</dd></div>
           </dl>
         )}
@@ -81,7 +82,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
 
       {canManage && status !== 'suspended' && (
         <Card>
-          <h2 className="mb-2 font-bold">招待</h2>
+          <h2 className="mb-2 font-bold">{status === 'active' ? 'パスワードの再設定' : '招待'}</h2>
           {lastInvite && (
             <p className="muted mb-2 text-sm">
               前回の発行：{friendlyDateTime(lastInvite.created_at)}（

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/invite/', '/forgot-password', '/auth/callback', '/api/cron/'];
+const PUBLIC_PATHS = ['/login', '/join', '/invite/', '/forgot-password', '/auth/callback', '/api/cron/'];
 
 /** すべての画面の前に実行：ログイン状態を更新し、未ログインならログイン画面へ */
 export async function proxy(request: NextRequest) {

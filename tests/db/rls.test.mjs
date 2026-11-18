@@ -127,3 +127,9 @@ test('予約配信：時刻になるまで見えず、定期処理で配信さ�
 test('訓練生は配信処理を直接呼べない', async () => {
   await assert.rejects(as(U.x, 'select publish_due_announcements()'), /permission denied/);
 });
+
+test('同じ携帯番号は二重に登録できない（表記ゆれも同じ番号として扱う）', async () => {
+  await sudo("update trainee_details set phone = '090-1111-2222' where profile_id = $1", [U.x]);
+  await assert.rejects(sudo("update trainee_details set phone = '09011112222' where profile_id = $1", [U.y]), /duplicate key/);
+  await sudo("update trainee_details set email = null where profile_id = $1", [U.y]); // メールは空でもよい
+});

@@ -1,10 +1,11 @@
 import { Button, Field } from '@/components/ui';
 import type { ClassOption } from '@/lib/classes';
+import { formatPhone } from '@/lib/phone';
 
 type Values = {
   full_name?: string;
   full_name_kana?: string;
-  email?: string;
+  email?: string | null;
   phone?: string;
   class_id?: string;
   enrolled_on?: string | null;
@@ -30,8 +31,8 @@ export function TraineeForm({
       <Field label="フリガナ"><input name="full_name_kana" defaultValue={values.full_name_kana} placeholder="ヤマダ ハナコ" /></Field>
       {showContact ? (
         <>
-          <Field label="メールアドレス（必須・ログインIDになります）"><input name="email" type="email" defaultValue={values.email} required /></Field>
-          <Field label="電話番号"><input name="phone" type="tel" defaultValue={values.phone} placeholder="090-1234-5678" /></Field>
+          <Field label="携帯番号（必須・ログインIDになります）"><input name="phone" type="tel" inputMode="tel" defaultValue={values.phone ? formatPhone(values.phone) : ''} placeholder="090-1234-5678" required /></Field>
+          <Field label="メールアドレス（任意）"><input name="email" type="email" defaultValue={values.email ?? ''} /></Field>
         </>
       ) : null}
       <Field label="所属（コース / クラス）">

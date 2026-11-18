@@ -23,7 +23,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
     hasPerm('manage_trainees'),
     supabase
       .from('profiles')
-      .select('id, full_name, full_name_kana, status, trainee_details(expected_completion_on), enrollments(class_id, ended_on, classes(name, course_id, courses(name)))')
+      .select('id, full_name, full_name_kana, status, trainee_details(expected_completion_on, phone), enrollments(class_id, ended_on, classes(name, course_id, courses(name)))')
       .eq('role', 'trainee')
       .order('full_name_kana'),
   ]);
@@ -39,12 +39,13 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
       kana: t.full_name_kana as string,
       status: t.status as AccountStatus,
       completion: t.trainee_details?.expected_completion_on as string | null,
+      phone: (t.trainee_details?.phone ?? '') as string,
       classId: cur?.class_id as string | undefined,
       courseId: cur?.classes?.course_id as string | undefined,
       label: cur ? `${cur.classes.courses.name} / ${cur.classes.name}` : '未所属',
     };
   }).filter((r) =>
-    (!q || r.name.toLowerCase().includes(q) || r.kana.toLowerCase().includes(q)) &&
+    (!q || r.name.toLowerCase().includes(q) || r.kana.toLowerCase().includes(q) || (q.replace(/\D/g, '').length >= 3 && r.phone.includes(q.replace(/\D/g, '')))) &&
     (!sp.course || r.courseId === sp.course) &&
     (!sp.class || r.classId === sp.class) &&
     (!sp.status || r.status === sp.status),
@@ -69,7 +70,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
       <Notice error={sp.error} message={sp.message} />
       <Card>
         <form className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-end">
-          <input name="q" defaultValue={sp.q} placeholder="氏名・フリガナで検索" aria-label="検索" />
+          <input name="q" defaultValue={sp.q} placeholder="氏名・フリガナ・携帯番号で検索" aria-label="検索" />
           <select name="course" defaultValue={sp.course ?? ''} aria-label="コース">
             <option value="">すべてのコース</option>
             {courses.map(([id, name]) => <option key={id} value={id}>{name}</option>)}

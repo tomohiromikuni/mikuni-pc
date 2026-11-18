@@ -70,3 +70,11 @@ export async function setClassArchived(id: string, archived: boolean) {
   revalidatePath('/admin/courses');
   back(undefined, archived ? 'クラスをアーカイブしました' : '元に戻しました');
 }
+
+export async function setClassSignup(id: string, open: boolean) {
+  await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from('classes').update({ open_for_signup: open }).eq('id', id);
+  revalidatePath('/admin/courses');
+  back(undefined, open ? '登録の受付を開始しました（共通QRの登録画面に表示されます）' : '登録の受付を終了しました');
+}

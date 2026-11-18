@@ -3,6 +3,7 @@ import { Button, Card, LinkButton, PageTitle } from '@/components/ui';
 import { env } from '@/lib/env';
 import { requireTrainee } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
+import { formatPhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function MyPage() {
@@ -22,8 +23,8 @@ export default async function MyPage() {
   const rows: [string, string][] = [
     ['氏名', me.full_name],
     ['フリガナ', me.full_name_kana || '—'],
-    ['メールアドレス', detail?.email ?? '—'],
-    ['電話番号', detail?.phone || '—'],
+    ['携帯番号（ログインID）', formatPhone(detail?.phone) || '—'],
+    ...(detail?.email ? [['メールアドレス', detail.email] as [string, string]] : []),
     ['コース', cls?.courses?.name ?? '—'],
     ['クラス', cls?.name ?? '—'],
     ['入校日', formatDate(detail?.enrolled_on)],
