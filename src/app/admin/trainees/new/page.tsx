@@ -17,7 +17,7 @@ export default async function NewTraineePage({ searchParams }: { searchParams: P
       <Card>
         <TraineeForm action={createTrainee} classes={classes} submitLabel="登録する" />
       </Card>
-      <p className="muted text-sm">Excel・CSVでの一括登録は開発段階2で追加予定です。</p>
+      <p className="text-sm">大人数は <Link href="/admin/trainees/import" className="font-bold text-brand-700 underline">Excel・CSVで一括登録</Link> が便利です。</p>
     </div>
   );
 }

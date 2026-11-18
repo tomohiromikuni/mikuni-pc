@@ -53,7 +53,19 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-4">
-      <PageTitle action={canManage && <LinkButton href="/admin/trainees/new">＋ 訓練生を登録</LinkButton>}>訓練生</PageTitle>
+      <PageTitle
+        action={
+          canManage && (
+            <div className="flex flex-wrap gap-2">
+              <LinkButton href="/admin/trainees/invites" variant="secondary">招待QRをまとめて発行</LinkButton>
+              <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
+              <LinkButton href="/admin/trainees/new">＋ 訓練生を登録</LinkButton>
+            </div>
+          )
+        }
+      >
+        訓練生
+      </PageTitle>
       <Notice error={sp.error} message={sp.message} />
       <Card>
         <form className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-end">

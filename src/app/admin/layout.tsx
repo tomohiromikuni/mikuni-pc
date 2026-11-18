@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await requireStaff();
   return (
     <div className="min-h-dvh md:flex">
-      <aside className="surface border-b md:sticky md:top-0 md:h-dvh md:w-60 md:shrink-0 md:border-r md:border-b-0">
+      <aside className="surface border-b print:hidden md:sticky md:top-0 md:h-dvh md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <div className="flex items-center justify-between px-4 py-3 md:block">
           <div>
             <p className="font-bold text-brand-700">{env.appName}</p>

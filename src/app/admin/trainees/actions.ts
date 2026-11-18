@@ -28,23 +28,21 @@ function parse(f: FormData, withContact = true) {
 
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
 
-export async function createTrainee(f: FormData) {
-  const me = await requirePerm('manage_trainees');
-  const p = parse(f);
-  if ('error' in p) redirect('/admin/trainees/new?error=' + encodeURIComponent(p.error!));
-  const v = p.data!;
+type TraineeValues = z.infer<typeof traineeSchema>;
+type Me = { id: string; org_id: string; role: string };
 
+/** 訓練生を1人登録する（ログインアカウント → 本人の権限で各表へ）。失敗時は元に戻してエラー文を返す */
+async function createTraineeRecord(me: Me, v: TraineeValues): Promise<{ id?: string; error?: string }> {
   const admin = createAdminClient();
   const { data: created, error: authErr } = await admin.auth.admin.createUser({ email: v.email, email_confirm: true });
   if (authErr || !created.user) {
-    const msg = /already|registered|exists/i.test(authErr?.message ?? '')
-      ? 'このメールアドレスはすでに登録されています'
-      : '登録できませんでした：' + authErr?.message;
-    redirect('/admin/trainees/new?error=' + encodeURIComponent(msg));
+    return {
+      error: /already|registered|exists/i.test(authErr?.message ?? '')
+        ? 'このメールアドレスはすでに登録されています'
+        : '登録できませんでした：' + authErr?.message,
+    };
   }
   const id = created.user.id;
-
-  // ここからは本人の権限（RLS）で書き込む。失敗したらログインアカウントを消して元に戻す
   const supabase = await createClient();
   const steps = [
     () => supabase.from('profiles').insert({ id, org_id: me.org_id, role: 'trainee', status: 'invited', full_name: v.full_name, full_name_kana: v.full_name_kana }),
@@ -55,11 +53,61 @@ export async function createTrainee(f: FormData) {
     const { error } = await step();
     if (error) {
       await admin.auth.admin.deleteUser(id);
-      redirect('/admin/trainees/new?error=' + encodeURIComponent('登録できませんでした：' + error.message));
+      return { error: '登録できませんでした：' + error.message };
     }
   }
+  return { id };
+}
+
+export async function createTrainee(f: FormData) {
+  const me = await requirePerm('manage_trainees');
+  const p = parse(f);
+  if ('error' in p) redirect('/admin/trainees/new?error=' + encodeURIComponent(p.error!));
+  const r = await createTraineeRecord(me, p.data!);
+  if (r.error) redirect('/admin/trainees/new?error=' + encodeURIComponent(r.error));
   revalidatePath('/admin/trainees');
-  redirect(`/admin/trainees/${id}?message=` + encodeURIComponent('登録しました。次に招待URLを発行してください'));
+  redirect(`/admin/trainees/${r.id}?message=` + encodeURIComponent('登録しました。次に招待URLを発行してください'));
+}
+
+/** 一括登録の確認画面用：すでに登録済みのメールアドレスを返す */
+export async function findExistingEmails(emails: string[]): Promise<string[]> {
+  await requirePerm('manage_trainees');
+  const list = [...new Set(emails.map((e) => e.toLowerCase()).filter(Boolean))].slice(0, 1000);
+  if (list.length === 0) return [];
+  const admin = createAdminClient();
+  const { data } = await admin.from('trainee_details').select('email').in('email', list);
+  return (data ?? []).map((r) => r.email);
+}
+
+export type ImportInput = Omit<TraineeValues, never> & { line: number };
+export type ImportResult = { succeeded: number; failed: { line: number; name: string; error: string }[] };
+
+/** 一括登録（確認画面でエラーのなかった行だけが送られてくる。念のためここでも再チェック） */
+export async function importTrainees(rows: ImportInput[], fileName: string): Promise<ImportResult> {
+  const me = await requirePerm('manage_trainees');
+  const result: ImportResult = { succeeded: 0, failed: [] };
+  for (const row of rows.slice(0, 500)) {
+    const v = traineeSchema.safeParse(row);
+    if (!v.success) {
+      result.failed.push({ line: row.line, name: row.full_name, error: v.error.issues[0].message });
+      continue;
+    }
+    const r = await createTraineeRecord(me, v.data);
+    if (r.error) result.failed.push({ line: row.line, name: row.full_name, error: r.error });
+    else result.succeeded++;
+  }
+  const supabase = await createClient();
+  await supabase.from('import_batches').insert({
+    org_id: me.org_id,
+    created_by: me.id,
+    file_name: fileName.slice(0, 200),
+    total: rows.length,
+    succeeded: result.succeeded,
+    failed: result.failed.length,
+    errors: result.failed,
+  });
+  revalidatePath('/admin/trainees');
+  return result;
 }
 
 export async function updateTrainee(id: string, f: FormData) {
@@ -124,13 +172,12 @@ export async function setTraineeSuspended(id: string, suspended: boolean) {
 
 export type InviteResult = { url: string; qr: string; expiresAt: string } | { error: string } | null;
 
-/** 招待URLを発行（以前の未使用URLは無効になる）。URLはこの画面でのみ表示し、保存しない */
-export async function issueInvite(traineeId: string): Promise<InviteResult> {
-  const me = await requirePerm('manage_trainees');
+async function issueInviteCore(me: Me, traineeId: string): Promise<{ url: string; qr: string; expiresAt: string; name: string } | { error: string }> {
   const supabase = await createClient();
-  // 権限ルールで見えない＝担当外の訓練生には発行させない
-  const { data: target } = await supabase.from('profiles').select('id, status, role').eq('id', traineeId).maybeSingle();
-  if (!target || target.role !== 'trainee') return { error: 'この訓練生に招待を発行する権限がありません' };
+  // 権限ルールで見えない＝担当外の人には発行させない
+  const { data: target } = await supabase.from('profiles').select('id, status, role, full_name').eq('id', traineeId).maybeSingle();
+  if (!target) return { error: 'この人に招待を発行する権限がありません' };
+  if (target.role !== 'trainee' && me.role !== 'admin') return { error: 'スタッフの招待は管理者のみ発行できます' };
   if (target.status === 'suspended') return { error: '利用停止中のため発行できません。先に利用を再開してください' };
 
   const admin = createAdminClient();
@@ -143,5 +190,28 @@ export async function issueInvite(traineeId: string): Promise<InviteResult> {
 
   const url = `${env.siteUrl()}/invite/${token}`;
   const qr = await QRCode.toDataURL(url, { width: 320, margin: 1 });
-  return { url, qr, expiresAt };
+  return { url, qr, expiresAt, name: target.full_name };
+}
+
+/** 招待URLを発行（以前の未使用URLは無効になる）。URLはこの画面でのみ表示し、保存しない */
+export async function issueInvite(traineeId: string): Promise<InviteResult> {
+  const me = await requirePerm('manage_trainees');
+  const r = await issueInviteCore(me, traineeId);
+  if ('error' in r) return r;
+  return { url: r.url, qr: r.qr, expiresAt: r.expiresAt };
+}
+
+export type BulkInviteResult = { cards: { id: string; name: string; url: string; qr: string; expiresAt: string }[]; errors: string[] } | null;
+
+/** 選んだ訓練生の招待をまとめて発行（印刷用） */
+export async function issueInvites(_prev: BulkInviteResult, f: FormData): Promise<BulkInviteResult> {
+  const me = await requirePerm('manage_trainees');
+  const ids = f.getAll('id').map(String).slice(0, 200);
+  const out: NonNullable<BulkInviteResult> = { cards: [], errors: [] };
+  for (const id of ids) {
+    const r = await issueInviteCore(me, id);
+    if ('error' in r) out.errors.push(r.error);
+    else out.cards.push({ id, ...r });
+  }
+  return out;
 }

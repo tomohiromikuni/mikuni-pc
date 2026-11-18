@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AnnouncementFields } from '@/components/AnnouncementFields';
+import { AttachmentList } from '@/components/AttachmentList';
+import { AttachmentManager } from '@/components/AttachmentManager';
+import { listAnnouncementAttachments } from '@/lib/attachments';
 import { Button, Card, Notice, PageTitle, PriorityBadge, type Flash } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
@@ -21,6 +24,7 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
     supabase.from('announcement_categories').select('id, name').order('sort_order'),
   ]);
   if (!a) notFound();
+  const attachments = await listAnnouncementAttachments(id);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const targets = (a.announcement_targets ?? []).map((t: any) =>
@@ -85,6 +89,15 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
           <p className="muted mt-2 text-xs">表示されるのは、あなたの担当範囲の訓練生だけです。未読者への再通知は通知機能（開発段階5）で追加します。</p>
         </Card>
       )}
+
+      <Card>
+        <h2 className="mb-3 font-bold">添付ファイル（{attachments.length}件）</h2>
+        {canEdit ? (
+          <AttachmentManager items={attachments} orgId={a.org_id} announcementId={id} />
+        ) : (
+          <AttachmentList items={attachments} />
+        )}
+      </Card>
 
       {canEdit && (
         <Card>

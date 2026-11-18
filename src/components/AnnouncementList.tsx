@@ -15,6 +15,7 @@ export function AnnouncementList({ items, empty = 'お知らせはまだあり�
               <span className="flex flex-wrap items-center gap-2">
                 <PriorityBadge priority={a.priority} />
                 {a.category && <span className="muted text-xs">{a.category}</span>}
+                {a.attachmentCount > 0 && <span className="muted text-xs" aria-label="添付あり">📎{a.attachmentCount}</span>}
               </span>
               <span className={`block truncate ${a.read ? '' : 'font-bold'}`}>{a.title}</span>
               <span className="muted block text-xs">{friendlyDateTime(a.published_at)}</span>

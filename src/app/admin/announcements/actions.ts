@@ -20,9 +20,11 @@ function parseTargets(f: FormData): Target[] {
   });
 }
 
-export async function createAnnouncement(f: FormData) {
+export type DraftResult = { id: string; orgId: string } | { error: string };
+
+/** 手順1：下書きとして保存（添付ファイルを置く場所を作るため） */
+export async function saveAnnouncementDraft(f: FormData): Promise<DraftResult> {
   const me = await requirePerm('announce');
-  const back = (e: string) => redirect('/admin/announcements/new?error=' + encodeURIComponent(e));
   const title = String(f.get('title') ?? '').trim();
   const body = String(f.get('body') ?? '').trim();
   const priority = String(f.get('priority') ?? 'normal');
@@ -31,10 +33,10 @@ export async function createAnnouncement(f: FormData) {
   const publishAt = jstLocalToIso(String(f.get('publish_at') ?? ''));
   const targets = parseTargets(f);
 
-  if (!title) back('タイトルを入力してください');
-  if (!PRIORITIES.includes(priority as (typeof PRIORITIES)[number])) back('優先度が正しくありません');
-  if (mode !== 'draft' && targets.length === 0) back('宛先を選んでください');
-  if (mode === 'schedule' && (!publishAt || new Date(publishAt) <= new Date())) back('予約日時は現在より後の日時を指定してください');
+  if (!title) return { error: 'タイトルを入力してください' };
+  if (!PRIORITIES.includes(priority as (typeof PRIORITIES)[number])) return { error: '優先度が正しくありません' };
+  if (mode !== 'draft' && targets.length === 0) return { error: '宛先を選んでください' };
+  if (mode === 'schedule' && (!publishAt || new Date(publishAt) <= new Date())) return { error: '予約日時は現在より後の日時を指定してください' };
 
   const supabase = await createClient();
   const { data: a, error } = await supabase
@@ -42,25 +44,31 @@ export async function createAnnouncement(f: FormData) {
     .insert({ org_id: me.org_id, title, body, priority, category_id: categoryId, created_by: me.id })
     .select('id')
     .single();
-  if (error || !a) back('保存できませんでした：' + error?.message);
-  const id = a!.id as string;
+  if (error || !a) return { error: '保存できませんでした：' + error?.message };
 
   if (targets.length) {
-    const { error: te } = await supabase.from('announcement_targets').insert(targets.map((t) => ({ ...t, announcement_id: id })));
+    const { error: te } = await supabase.from('announcement_targets').insert(targets.map((t) => ({ ...t, announcement_id: a.id })));
     if (te) {
-      await supabase.from('announcements').delete().eq('id', id);
-      back('担当範囲外の宛先が含まれているため保存できませんでした');
+      await supabase.from('announcements').delete().eq('id', a.id);
+      return { error: '担当範囲外の宛先が含まれているため保存できませんでした' };
     }
   }
+  return { id: a.id as string, orgId: me.org_id };
+}
 
+/** 手順2：添付ファイルのアップロード後に、配信・予約する */
+export async function finalizeAnnouncement(id: string, mode: string, publishAtLocal: string): Promise<{ error?: string; url?: string }> {
+  await requirePerm('announce');
   let msg = '下書きを保存しました';
   if (mode !== 'draft') {
-    const { data: n, error: pe } = await supabase.rpc('publish_announcement', { p_id: id, p_publish_at: mode === 'schedule' ? publishAt : null });
-    if (pe) redirect(`/admin/announcements/${id}?error=` + encodeURIComponent('配信できませんでした：' + pe.message));
+    const supabase = await createClient();
+    const publishAt = mode === 'schedule' ? jstLocalToIso(publishAtLocal) : null;
+    const { data: n, error } = await supabase.rpc('publish_announcement', { p_id: id, p_publish_at: publishAt });
+    if (error) return { url: `/admin/announcements/${id}?error=` + encodeURIComponent('配信できませんでした：' + error.message) };
     msg = mode === 'schedule' ? '予約しました' : `${n}人に配信しました`;
   }
   revalidatePath('/admin/announcements');
-  redirect(`/admin/announcements/${id}?message=` + encodeURIComponent(msg));
+  return { url: `/admin/announcements/${id}?message=` + encodeURIComponent(msg) };
 }
 
 export async function publishNow(id: string) {

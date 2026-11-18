@@ -13,4 +13,4 @@ trap 'run "$PGBIN/pg_ctl -D $DATA -m immediate stop >/dev/null"; rm -rf "$DATA"'
 PSQL="psql -h /tmp -p $PORT -U postgres -d postgres -v ON_ERROR_STOP=1 -q"
 $PSQL -f scripts/supabase-shim.sql
 for f in supabase/migrations/*.sql; do $PSQL -f "$f"; done
-TEST_DATABASE_URL="postgres://postgres@localhost:$PORT/postgres?host=/tmp" node --test "tests/db/*.test.mjs"
+TEST_DATABASE_URL="postgres://postgres@localhost:$PORT/postgres?host=/tmp" node --test --test-concurrency=1 "tests/db/*.test.mjs"

@@ -1,10 +1,10 @@
 import Link from 'next/link';
+import { AnnouncementComposer } from '@/components/AnnouncementComposer';
 import { AnnouncementFields } from '@/components/AnnouncementFields';
-import { Button, Card, Notice, PageTitle, type Flash } from '@/components/ui';
+import { Card, Notice, PageTitle, type Flash } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { getTargetOptions } from '@/lib/targets';
-import { createAnnouncement } from '../actions';
 
 export default async function NewAnnouncementPage({ searchParams }: { searchParams: Promise<Flash> }) {
   await requirePerm('announce');
@@ -20,12 +20,9 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
       <Link href="/admin/announcements" className="text-sm font-bold text-brand-700">‹ お知らせ一覧</Link>
       <PageTitle>お知らせを作成</PageTitle>
       <Notice error={error} />
-      <form action={createAnnouncement} className="space-y-4">
-        <Card className="space-y-4">
-          <AnnouncementFields categories={categories ?? []} />
-          <p className="muted text-xs">画像・PDFの添付は開発段階2で追加予定です。</p>
-        </Card>
-
+      <AnnouncementComposer
+        fields={<AnnouncementFields categories={categories ?? []} />}
+        targets={
         <Card className="space-y-3">
           <h2 className="font-bold">宛先</h2>
           {targets.all && (
@@ -54,7 +51,8 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
           {!targets.all && targets.classes.length === 0 && <p className="text-red-700">配信できる宛先がありません。先にコース・クラスを登録してください。</p>}
           <p className="muted text-xs">「全訓練生」を選ぶと、ほかの選択は無視されます。複数のコース・クラスを選ぶと、重複なく1回だけ届きます。</p>
         </Card>
-
+        }
+        timing={
         <Card className="space-y-3">
           <h2 className="font-bold">配信のタイミング</h2>
           <label className="flex items-center gap-2 font-normal"><input type="radio" name="mode" value="now" defaultChecked /> 今すぐ配信</label>
@@ -64,9 +62,8 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
           </div>
           <label className="flex items-center gap-2 font-normal"><input type="radio" name="mode" value="draft" /> 下書きとして保存（配信しない）</label>
         </Card>
-
-        <Button type="submit" className="w-full sm:w-auto">保存・配信する</Button>
-      </form>
+        }
+      />
     </div>
   );
 }

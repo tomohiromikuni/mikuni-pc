@@ -11,6 +11,7 @@ export type TraineeAnnouncement = {
   edited_at: string | null;
   category: string | null;
   read: boolean;
+  attachmentCount: number;
 };
 
 /** 自分あての配信済みお知らせ（権限ルールにより自分あてのものだけが返る） */
@@ -18,7 +19,7 @@ export async function listMyAnnouncements(opts: { limit?: number; categoryId?: s
   const supabase = await createClient();
   let q = supabase
     .from('announcements')
-    .select('id, title, body, priority, published_at, edited_at, category_id, announcement_categories(name), announcement_recipients(read_at)')
+    .select('id, title, body, priority, published_at, edited_at, category_id, announcement_categories(name), announcement_recipients(read_at), attachments(id)')
     .eq('status', 'published')
     .order('published_at', { ascending: false });
   if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
@@ -52,5 +53,6 @@ export function toItem(a: any): TraineeAnnouncement {
     edited_at: a.edited_at,
     category: a.announcement_categories?.name ?? null,
     read: Boolean(a.announcement_recipients?.[0]?.read_at),
+    attachmentCount: a.attachments?.length ?? 0,
   };
 }

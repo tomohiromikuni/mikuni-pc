@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AttachmentList } from '@/components/AttachmentList';
 import { PriorityBadge } from '@/components/ui';
+import { listAnnouncementAttachments } from '@/lib/attachments';
 import { requireTrainee } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
@@ -17,6 +19,7 @@ export default async function AnnouncementDetail({ params }: { params: Promise<{
     .maybeSingle();
   if (!data) notFound();
   const a = toItem(data);
+  const attachments = await listAnnouncementAttachments(id);
   if (!a.read) await supabase.rpc('mark_announcement_read', { p_id: id });
 
   return (
@@ -33,7 +36,8 @@ export default async function AnnouncementDetail({ params }: { params: Promise<{
           {a.edited_at && '（編集済み）'}
         </p>
       </header>
-      <div className="surface rounded-2xl border p-4 text-[17px] whitespace-pre-wrap break-words">{a.body}</div>
+      {a.body && <div className="surface rounded-2xl border p-4 text-[17px] whitespace-pre-wrap break-words">{a.body}</div>}
+      <AttachmentList items={attachments} />
     </article>
   );
 }
