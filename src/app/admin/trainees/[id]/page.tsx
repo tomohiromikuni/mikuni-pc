@@ -8,6 +8,7 @@ import { getClassOptions } from '@/lib/classes';
 import { formatDate, friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
+import { openChatWithTrainee } from '../../chat/actions';
 import { issueInvite, setTraineeSuspended, updateTrainee } from '../actions';
 
 export default async function TraineeDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Flash> }) {
@@ -19,7 +20,8 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   const { data: t } = await supabase.from('profiles').select('*').eq('id', id).eq('role', 'trainee').maybeSingle();
   if (!t) notFound(); // 担当外の訓練生は「存在しない」扱い
 
-  const [canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: invites }, { data: reads }] = await Promise.all([
+  const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: invites }, { data: reads }] = await Promise.all([
+    hasPerm('chat'),
     hasPerm('manage_trainees'),
     hasPerm('view_pii'),
     getClassOptions(),
@@ -40,6 +42,11 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
         <span className="ml-3 rounded-md bg-black/5 px-2 py-0.5 align-middle text-sm">{STATUS_LABEL[status]}</span>
       </PageTitle>
       <Notice error={error} message={message} />
+      {canChat && (
+        <form action={openChatWithTrainee.bind(null, id)}>
+          <Button type="submit" variant="secondary">💬 チャットを開く</Button>
+        </form>
+      )}
 
       <Card>
         <h2 className="mb-3 font-bold">基本情報</h2>

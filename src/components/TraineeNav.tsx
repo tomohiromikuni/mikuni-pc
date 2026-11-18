@@ -10,7 +10,7 @@ const TABS = [
   { href: '/mypage', label: 'マイページ', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' },
 ];
 
-export function TraineeNav({ unread }: { unread: number }) {
+export function TraineeNav({ unread, chatUnread = 0, todo = 0 }: { unread: number; chatUnread?: number; todo?: number }) {
   const path = usePathname();
   return (
     <nav
@@ -33,11 +33,14 @@ export function TraineeNav({ unread }: { unread: number }) {
                   <path d={t.icon} />
                 </svg>
                 {t.label}
-                {t.href === '/announcements' && unread > 0 && (
-                  <span className="absolute top-1.5 left-1/2 ml-2 min-w-5 rounded-full bg-red-500 px-1 text-center text-[11px] leading-5 text-white">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
-                )}
+                {(() => {
+                  const n = t.href === '/announcements' ? unread : t.href === '/chat' ? chatUnread : t.href === '/answers' ? todo : 0;
+                  return n > 0 ? (
+                    <span className="absolute top-1.5 left-1/2 ml-2 min-w-5 rounded-full bg-red-500 px-1 text-center text-[11px] leading-5 text-white">
+                      {n > 99 ? '99+' : n}
+                    </span>
+                  ) : null;
+                })()}
               </Link>
             </li>
           );

@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await requireStaff();
   return (
     <div className="min-h-dvh md:flex">
-      <aside className="surface border-b print:hidden md:sticky md:top-0 md:h-dvh md:w-60 md:shrink-0 md:border-r md:border-b-0">
+      <aside className="surface relative border-b print:hidden md:sticky md:top-0 md:h-dvh md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <div className="flex items-center justify-between px-4 py-3 md:block">
           <div>
             <p className="font-bold text-brand-700">{env.appName}</p>
@@ -19,6 +19,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="px-2 pb-2">
           <AdminNav isAdmin={me.role === 'admin'} />
         </div>
+        <p className="muted px-4 pb-3 text-xs md:absolute md:bottom-0" title="アプリのバージョン">
+          バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
+          {process.env.NEXT_PUBLIC_BUILD_ID && <span className="ml-1 opacity-70">({process.env.NEXT_PUBLIC_BUILD_ID})</span>}
+        </p>
       </aside>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
     </div>

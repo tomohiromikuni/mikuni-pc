@@ -1,11 +1,13 @@
 import { TraineeNav } from '@/components/TraineeNav';
 import { requireTrainee } from '@/lib/auth';
 import { env } from '@/lib/env';
+import { createClient } from '@/lib/supabase/server';
 import { countUnread } from '@/lib/trainee-data';
 
 export default async function TraineeLayout({ children }: { children: React.ReactNode }) {
   await requireTrainee();
-  const unread = await countUnread();
+  const supabase = await createClient();
+  const [unread, { data: chatUnread }] = await Promise.all([countUnread(), supabase.rpc('my_chat_unread')]);
   return (
     <div className="min-h-dvh pb-24">
       <header className="sticky top-0 z-10 bg-brand-600 pt-[env(safe-area-inset-top)] text-white">
@@ -14,7 +16,7 @@ export default async function TraineeLayout({ children }: { children: React.Reac
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-4 py-4">{children}</main>
-      <TraineeNav unread={unread} />
+      <TraineeNav unread={unread} chatUnread={chatUnread ?? 0} />
     </div>
   );
 }
