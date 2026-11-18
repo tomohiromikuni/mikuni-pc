@@ -1,14 +1,12 @@
 import 'server-only';
+import { getMe } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
 export type MySurvey = { id: string; kind: 'attendance' | 'survey'; title: string; due_at: string | null; status: string; responded_at: string | null; open: boolean };
 
 /** 自分あての出欠・アンケート（新しい順） */
 export async function listMySurveys(): Promise<MySurvey[]> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([createClient(), getMe()]);
   if (!user) return [];
   const { data } = await supabase
     .from('survey_recipients')

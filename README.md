@@ -3,14 +3,14 @@
 職業訓練生と事務局・講師が、お知らせ・チャット・出欠・アンケートを1つのアプリでやり取りするためのWebアプリです。
 全体の設計は [`docs/設計案.md`](docs/設計案.md) を参照してください。
 
-## いまできること（段階0〜1：基本機能）
+## できること（バージョン 0.7.0）
 
 | 利用者 | 機能 |
 |---|---|
-| 訓練生 | 招待URL／QRからの登録、ログイン、規約同意、ホーム（重要なお知らせ・新着）、お知らせ一覧（カテゴリー絞り込み・未読マーク）・詳細（開くと既読）、マイページ、パスワード変更・再設定 |
-| 管理者・スタッフ | ダッシュボード、訓練生の登録・編集・検索・絞り込み・所属変更（履歴が残る）、招待URL・QRコードの発行、利用停止・再開、コース・クラスの登録・編集・アーカイブ、お知らせの作成（全体／コース／クラス、優先度、カテゴリー、今すぐ・予約・下書き）、既読状況・未読者一覧 |
+| 訓練生 | 招待URL／QRからの登録、ホーム（重要なお知らせ・回答が必要なもの・新着）、お知らせ（画像・PDF添付、既読）、**事務局チャット**（LINE風・写真やファイル送信・既読表示）、**出欠・アンケート回答**（期限内は修正可）、**プッシュ通知**、マイページ |
+| 管理者・スタッフ | お知らせ配信（添付・予約・再通知・緊急の時間外通知）、訓練生管理（**Excel/CSV一括登録**・招待QRのまとめて印刷・履歴）、コース・クラス、**チャット受信箱**（対応状態・スタッフ用メモ）、**出欠・アンケート**（集計グラフ・未回答者・CSV出力）、**スタッフ管理**（権限・担当範囲）、祝日・休校日、**操作ログ**、2段階認証 |
 
-チャット・出欠／アンケート・通知などは、設計案の段階2以降で追加します（画面には「準備中」と表示されます）。
+通知のルール：訓練生には 平日20時〜翌7時・土日・祝日・休校日 は通知せず、次の平日の朝7時にまとめて1通送ります（アプリ内にはすぐ届きます）。
 
 ## 安全のしくみ
 
@@ -64,14 +64,30 @@
    - **Site URL**：公開URL
    - **Redirect URLs**：`公開URL/auth/callback`
 
-### 3. 使ってみる
+### 3. 段階2〜6の追加設定（バージョン 0.2.0 以降）
+
+1. Supabase の **SQL Editor** で、次の5つのファイルを**この順番で1つずつ**貼り付けて Run します（それぞれ「Success」と出ればOK）。
+   1. `supabase/migrations/20261119000002_attachments_import.sql`
+   2. `supabase/migrations/20261119000003_chat.sql`
+   3. `supabase/migrations/20261119000004_surveys.sql`
+   4. `supabase/migrations/20261119000005_notifications.sql`
+   5. `supabase/migrations/20261119000006_staff_audit.sql`
+2. Supabase の **Database › Extensions** で `pg_cron` と `pg_net` を有効にします。
+3. Vercel の **Environment Variables** に次を追加します（値は開発者から受け取ったもの）：
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT`、`CRON_SECRET`、`NEXT_PUBLIC_SITE_URL`
+4. [`supabase/setup/cron.sql`](supabase/setup/cron.sql) の ★（URLとCRON_SECRET）を書き換えて SQL Editor で実行します。
+5. Vercel で **Redeploy** します。
+6. 管理画面の **通知と設定** で「内閣府の祝日データを取り込む」を押します。年末年始などの休校日もここで追加します。
+7. （任意）スタッフ・管理者の2段階認証を必須にする場合は、Vercel に `REQUIRE_STAFF_MFA=true` を追加して Redeploy します。先に自分で一度 `/mfa` を開いて登録を済ませてから設定すると安全です。
+
+### 4. 使ってみる
 
 1. 公開URLを開き、管理者でログインします。
 2. **コース・クラス**でコースとクラスを登録します。
 3. **訓練生**で訓練生を登録し、詳細画面で「招待URLを発行」を押します。URLを送るか、QRコードを印刷して渡します。
 4. **お知らせ**を作って配信し、既読状況を確認します。
 
-> 💡 スタッフ（講師）のアカウント追加画面は段階6で作ります。それまでは、追加が必要なら相談してください。
+> 💡 スタッフ（講師）は管理画面の **スタッフ** から追加し、招待URLを渡します。
 
 ---
 
@@ -94,7 +110,9 @@ npm run dev                  # http://localhost:3000
 
 ```
 src/app/(trainee)/   訓練生の画面（ホーム・お知らせ・チャット・回答・マイページ）
-src/app/admin/       管理画面（ダッシュボード・訓練生・コース・お知らせ）
+src/app/admin/       管理画面（お知らせ・チャット・出欠/アンケート・訓練生・コース・スタッフ・設定・操作ログ）
+src/app/api/cron/    定期実行（通知の送信、祝日の更新）
+public/sw.js         通知を受け取る仕組み（Service Worker）
 src/app/login, invite, terms, password, forgot-password  ログイン関連
 src/lib/             共通処理（認証・Supabase接続・日時表示など）
 src/proxy.ts         全画面共通：未ログインならログイン画面へ
@@ -104,4 +122,4 @@ tests/               自動テスト
 docs/設計案.md       全体設計
 ```
 
-技術構成：Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 / Supabase（PostgreSQL・認証）
+技術構成：Next.js 16 / React 19 / TypeScript / Tailwind CSS 4 / Supabase（PostgreSQL・認証・Storage・Realtime・pg_cron）/ Web Push / Vercel（東京リージョン）

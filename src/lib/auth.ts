@@ -4,16 +4,22 @@ import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { Permission, Profile } from '@/lib/types';
 
-/** ログイン中の本人のプロフィール（なければ null） */
-export const getMe = cache(async (): Promise<Profile | null> => {
+type MeWithPerms = Profile & { perms: Permission[] };
+
+/** ログイン中の本人のプロフィールと権限（1回の問い合わせで取得し、同じ画面表示の中では使い回す） */
+const loadMe = cache(async (): Promise<MeWithPerms | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-  return (data as Profile) ?? null;
+  const { data: auth } = await supabase.auth.getClaims();
+  const uid = auth?.claims?.sub;
+  if (!uid) return null;
+  const { data } = await supabase.from('profiles').select('*, staff_permissions(permission)').eq('id', uid).maybeSingle();
+  if (!data) return null;
+  const { staff_permissions, ...profile } = data as Profile & { staff_permissions?: { permission: Permission }[] };
+  return { ...profile, perms: (staff_permissions ?? []).map((p) => p.permission) };
 });
+
+/** ログイン中の本人のプロフィール（なければ null） */
+export const getMe = cache(async (): Promise<Profile | null> => loadMe());
 
 /** 有効なアカウントでなければ適切な画面へ移動させる */
 export async function requireActive(): Promise<Profile> {
@@ -49,11 +55,15 @@ export async function requireAdmin(): Promise<Profile> {
   return me;
 }
 
-/** 権限チェック（判定はデータベースの関数で行う＝画面と同じルール） */
+/**
+ * 権限チェック（画面の表示切り替え用）。データベースの has_perm と同じ判定。
+ * ※実際に見られるデータは、常にデータベース側の権限ルールで制限される
+ */
 export async function hasPerm(perm: Permission): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase.rpc('has_perm', { perm });
-  return data === true;
+  const me = await loadMe();
+  if (!me || me.status !== 'active') return false;
+  if (me.role === 'admin') return true;
+  return me.role === 'staff' && me.perms.includes(perm);
 }
 
 export async function requirePerm(perm: Permission): Promise<Profile> {

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { AttachmentList } from '@/components/AttachmentList';
 import { PriorityBadge } from '@/components/ui';
 import { listAnnouncementAttachments } from '@/lib/attachments';
@@ -12,15 +13,15 @@ export default async function AnnouncementDetail({ params }: { params: Promise<{
   await requireTrainee();
   const { id } = await params;
   const supabase = await createClient();
-  const { data } = await supabase
+  const [{ data }, attachments] = await Promise.all([supabase
     .from('announcements')
     .select('id, title, body, priority, published_at, edited_at, announcement_categories(name), announcement_recipients(read_at)')
     .eq('id', id)
-    .maybeSingle();
+    .maybeSingle(), listAnnouncementAttachments(id)]);
   if (!data) notFound();
   const a = toItem(data);
-  const attachments = await listAnnouncementAttachments(id);
-  if (!a.read) await supabase.rpc('mark_announcement_read', { p_id: id });
+  // 既読の記録は画面を返した後に行う
+  if (!a.read) after(async () => { await supabase.rpc('mark_announcement_read', { p_id: id }); });
 
   return (
     <article className="space-y-4">

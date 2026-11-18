@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { after } from 'next/server';
 import { notFound } from 'next/navigation';
 import { InvitePanel } from '@/components/InvitePanel';
 import { TraineeForm } from '@/components/TraineeForm';
@@ -20,7 +21,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   const { data: t } = await supabase.from('profiles').select('*').eq('id', id).eq('role', 'trainee').maybeSingle();
   if (!t) notFound(); // 担当外の訓練生は「存在しない」扱い
 
-  const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: invites }, { data: reads }] = await Promise.all([
+  const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: invites }, { data: reads }, { data: surveyHist }, { data: myAnswers }] = await Promise.all([
     hasPerm('chat'),
     hasPerm('manage_trainees'),
     hasPerm('view_pii'),
@@ -29,16 +30,9 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
     supabase.from('enrollments').select('id, class_id, started_on, ended_on, classes(name, courses(name))').eq('trainee_id', id).order('started_on', { ascending: false }),
     supabase.from('invitations').select('created_at, expires_at, used_at, revoked_at').eq('profile_id', id).order('created_at', { ascending: false }).limit(1),
     supabase.from('announcement_recipients').select('read_at, announcements(id, title, published_at)').eq('trainee_id', id).limit(20),
+    supabase.from('survey_recipients').select('responded_at, surveys(id, kind, title, target_date, published_at)').eq('trainee_id', id).limit(100),
+    supabase.from('survey_responses').select('survey_id, survey_answers(option_id, text_value, survey_options(label))').eq('trainee_id', id),
   ]);
-  const { data: surveyHist } = await supabase
-    .from('survey_recipients')
-    .select('responded_at, surveys(id, kind, title, target_date, published_at)')
-    .eq('trainee_id', id)
-    .limit(100);
-  const { data: myAnswers } = await supabase
-    .from('survey_responses')
-    .select('survey_id, survey_answers(option_id, text_value, survey_options(label))')
-    .eq('trainee_id', id);
   const answerMap = new Map(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (myAnswers ?? []).map((r: any) => [r.survey_id, (r.survey_answers ?? []).map((a: any) => a.survey_options?.label ?? a.text_value).filter(Boolean).join('／')]),
@@ -46,7 +40,8 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hist = ((surveyHist ?? []) as any[]).filter((h) => h.surveys).sort((a, b) => (b.surveys.published_at ?? '').localeCompare(a.surveys.published_at ?? ''));
   const current = (enrollments ?? []).find((e) => !e.ended_on);
-  if (canPii && detail) await supabase.rpc('log_action', { p_action: 'trainee.view_pii', p_target_type: 'profile', p_target_id: id, p_detail: { name: t.full_name } });
+  // 操作ログは画面を返した後に記録（表示を待たせない）
+  if (canPii && detail) after(async () => { await supabase.rpc('log_action', { p_action: 'trainee.view_pii', p_target_type: 'profile', p_target_id: id, p_detail: { name: t.full_name } }); });
   const status = t.status as AccountStatus;
   const lastInvite = invites?.[0];
 

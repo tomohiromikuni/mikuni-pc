@@ -1,4 +1,5 @@
 import 'server-only';
+import { getMe } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import type { Priority } from '@/lib/types';
 
@@ -29,10 +30,7 @@ export async function listMyAnnouncements(opts: { limit?: number; categoryId?: s
 }
 
 export async function countUnread(): Promise<number> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([createClient(), getMe()]);
   if (!user) return 0;
   const { count } = await supabase
     .from('announcement_recipients')

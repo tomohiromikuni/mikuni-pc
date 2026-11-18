@@ -5,9 +5,14 @@ import { createClient } from '@/lib/supabase/server';
 import { countUnread } from '@/lib/trainee-data';
 
 export default async function TraineeLayout({ children }: { children: React.ReactNode }) {
-  await requireTrainee();
+  // 本人確認と件数の取得を同時に行う（待ち時間を1回分に）
   const supabase = await createClient();
-  const [unread, { data: chatUnread }, { data: todo }] = await Promise.all([countUnread(), supabase.rpc('my_chat_unread'), supabase.rpc('my_pending_surveys')]);
+  const [, unread, { data: chatUnread }, { data: todo }] = await Promise.all([
+    requireTrainee(),
+    countUnread(),
+    supabase.rpc('my_chat_unread'),
+    supabase.rpc('my_pending_surveys'),
+  ]);
   return (
     <div className="min-h-dvh pb-24">
       <header className="sticky top-0 z-10 bg-brand-600 pt-[env(safe-area-inset-top)] text-white">
