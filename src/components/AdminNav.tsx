@@ -6,6 +6,7 @@ const ITEMS = [
   { href: '/admin', label: 'ダッシュボード', exact: true },
   { href: '/admin/announcements', label: 'お知らせ' },
   { href: '/admin/chat', label: 'チャット' },
+  { href: '/admin/surveys', label: '出欠・アンケート' },
   { href: '/admin/trainees', label: '訓練生' },
   { href: '/admin/courses', label: 'コース・クラス', adminOnly: true },
 ];

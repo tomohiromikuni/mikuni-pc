@@ -4,20 +4,12 @@ import { redirect } from 'next/navigation';
 import { requireAdmin, requirePerm } from '@/lib/auth';
 import { jstLocalToIso } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
+import { parseTargetValues } from '@/lib/targets-parse';
 
 const PRIORITIES = ['normal', 'important', 'urgent'] as const;
 
-type Target = { target_type: 'all' | 'course' | 'class'; course_id: string | null; class_id: string | null };
-
-function parseTargets(f: FormData): Target[] {
-  const raw = f.getAll('target').map(String);
-  if (raw.includes('all')) return [{ target_type: 'all', course_id: null, class_id: null }];
-  return raw.flatMap((v): Target[] => {
-    const [type, id] = v.split(':');
-    if (type === 'course') return [{ target_type: 'course', course_id: id, class_id: null }];
-    if (type === 'class') return [{ target_type: 'class', course_id: null, class_id: id }];
-    return [];
-  });
+function parseTargets(f: FormData) {
+  return parseTargetValues(f.getAll('target').map(String));
 }
 
 export type DraftResult = { id: string; orgId: string } | { error: string };

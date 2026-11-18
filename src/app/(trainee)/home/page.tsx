@@ -3,11 +3,14 @@ import { AnnouncementList } from '@/components/AnnouncementList';
 import { Card, PriorityBadge } from '@/components/ui';
 import { requireTrainee } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
+import { SurveyItem } from '@/components/SurveyItem';
 import { listMyAnnouncements } from '@/lib/trainee-data';
+import { listMySurveys } from '@/lib/trainee-surveys';
 
 export default async function HomePage() {
   const me = await requireTrainee();
-  const items = await listMyAnnouncements({ limit: 30 });
+  const [items, surveys] = await Promise.all([listMyAnnouncements({ limit: 30 }), listMySurveys()]);
+  const todo = surveys.filter((x) => !x.responded_at && x.open);
   const alerts = items.filter((a) => a.priority !== 'normal' && !a.read);
   const latest = items.slice(0, 5);
 
@@ -38,10 +41,12 @@ export default async function HomePage() {
       )}
 
       <section className="space-y-2">
-        <h2 className="font-bold">📝 回答が必要なもの</h2>
-        <Card>
-          <p className="muted text-sm">いま回答が必要なものはありません。</p>
-        </Card>
+        <h2 className="font-bold">📝 回答が必要なもの{todo.length > 0 && <span className="ml-1 text-red-600">（{todo.length}）</span>}</h2>
+        {todo.length === 0 ? (
+          <Card><p className="muted text-sm">いま回答が必要なものはありません。</p></Card>
+        ) : (
+          <ul className="surface divide-y line overflow-hidden rounded-2xl border">{todo.map((x) => <SurveyItem key={x.id} s={x} />)}</ul>
+        )}
       </section>
 
       <section className="space-y-2">

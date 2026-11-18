@@ -7,7 +7,7 @@ import { countUnread } from '@/lib/trainee-data';
 export default async function TraineeLayout({ children }: { children: React.ReactNode }) {
   await requireTrainee();
   const supabase = await createClient();
-  const [unread, { data: chatUnread }] = await Promise.all([countUnread(), supabase.rpc('my_chat_unread')]);
+  const [unread, { data: chatUnread }, { data: todo }] = await Promise.all([countUnread(), supabase.rpc('my_chat_unread'), supabase.rpc('my_pending_surveys')]);
   return (
     <div className="min-h-dvh pb-24">
       <header className="sticky top-0 z-10 bg-brand-600 pt-[env(safe-area-inset-top)] text-white">
@@ -16,7 +16,7 @@ export default async function TraineeLayout({ children }: { children: React.Reac
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-4 py-4">{children}</main>
-      <TraineeNav unread={unread} chatUnread={chatUnread ?? 0} />
+      <TraineeNav unread={unread} chatUnread={chatUnread ?? 0} todo={todo ?? 0} />
     </div>
   );
 }

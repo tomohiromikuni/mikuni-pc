@@ -30,6 +30,21 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
     supabase.from('invitations').select('created_at, expires_at, used_at, revoked_at').eq('profile_id', id).order('created_at', { ascending: false }).limit(1),
     supabase.from('announcement_recipients').select('read_at, announcements(id, title, published_at)').eq('trainee_id', id).limit(20),
   ]);
+  const { data: surveyHist } = await supabase
+    .from('survey_recipients')
+    .select('responded_at, surveys(id, kind, title, target_date, published_at)')
+    .eq('trainee_id', id)
+    .limit(100);
+  const { data: myAnswers } = await supabase
+    .from('survey_responses')
+    .select('survey_id, survey_answers(option_id, text_value, survey_options(label))')
+    .eq('trainee_id', id);
+  const answerMap = new Map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (myAnswers ?? []).map((r: any) => [r.survey_id, (r.survey_answers ?? []).map((a: any) => a.survey_options?.label ?? a.text_value).filter(Boolean).join('／')]),
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hist = ((surveyHist ?? []) as any[]).filter((h) => h.surveys).sort((a, b) => (b.surveys.published_at ?? '').localeCompare(a.surveys.published_at ?? ''));
   const current = (enrollments ?? []).find((e) => !e.ended_on);
   const status = t.status as AccountStatus;
   const lastInvite = invites?.[0];
@@ -112,7 +127,32 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
           })}
           {(reads ?? []).length === 0 && <li className="muted">まだありません</li>}
         </ul>
-        <p className="muted mt-2 text-xs">出欠・アンケートの履歴は開発段階4で追加します。</p>
+      </Card>
+
+      <Card>
+        <h2 className="mb-2 font-bold">出欠の履歴</h2>
+        <ul className="divide-y line text-sm">
+          {hist.filter((h) => h.surveys.kind === 'attendance').map((h) => (
+            <li key={h.surveys.id} className="flex justify-between gap-3 py-1.5">
+              <Link href={`/admin/surveys/${h.surveys.id}`} className="truncate hover:underline">{h.surveys.title}</Link>
+              <span className={h.responded_at ? 'shrink-0 font-semibold' : 'shrink-0 text-red-700'}>{h.responded_at ? answerMap.get(h.surveys.id) || '回答済み' : '未回答'}</span>
+            </li>
+          ))}
+          {hist.filter((h) => h.surveys.kind === 'attendance').length === 0 && <li className="muted py-1.5">まだありません</li>}
+        </ul>
+      </Card>
+
+      <Card>
+        <h2 className="mb-2 font-bold">アンケートの回答履歴</h2>
+        <ul className="divide-y line text-sm">
+          {hist.filter((h) => h.surveys.kind === 'survey').map((h) => (
+            <li key={h.surveys.id} className="flex justify-between gap-3 py-1.5">
+              <Link href={`/admin/surveys/${h.surveys.id}`} className="truncate hover:underline">{h.surveys.title}</Link>
+              <span className={h.responded_at ? 'muted shrink-0' : 'shrink-0 text-red-700'}>{h.responded_at ? `回答 ${friendlyDateTime(h.responded_at)}` : '未回答'}</span>
+            </li>
+          ))}
+          {hist.filter((h) => h.surveys.kind === 'survey').length === 0 && <li className="muted py-1.5">まだありません</li>}
+        </ul>
       </Card>
 
       {me.role === 'admin' && (
