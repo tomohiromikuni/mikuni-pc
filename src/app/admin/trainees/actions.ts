@@ -76,7 +76,7 @@ export async function createTrainee(f: FormData) {
   const r = await createTraineeRecord(me, p.data!);
   if (r.error) redirect('/admin/trainees/new?error=' + encodeURIComponent(r.error));
   revalidatePath('/admin/trainees');
-  redirect(`/admin/trainees/${r.id}?message=` + encodeURIComponent('登録しました。次に招待URLを発行してください'));
+  redirect(`/admin/trainees/${r.id}?message=` + encodeURIComponent('名簿に登録しました。本人に共通の登録用QRから登録してもらってください'));
 }
 
 /** 一括登録の確認画面用：すでに登録済みのメールアドレス・携帯番号を返す */
@@ -222,17 +222,22 @@ export async function issueInvite(traineeId: string): Promise<InviteResult> {
   return { url: r.url, qr: r.qr, expiresAt: r.expiresAt };
 }
 
-export type BulkInviteResult = { cards: { id: string; name: string; url: string; qr: string; expiresAt: string }[]; errors: string[] } | null;
+export type TempPasswordResult = { password: string } | { error: string } | null;
 
-/** 選んだ訓練生の招待をまとめて発行（印刷用） */
-export async function issueInvites(_prev: BulkInviteResult, f: FormData): Promise<BulkInviteResult> {
-  const me = await requirePerm('manage_trainees');
-  const ids = f.getAll('id').map(String).slice(0, 200);
-  const out: NonNullable<BulkInviteResult> = { cards: [], errors: [] };
-  for (const id of ids) {
-    const r = await issueInviteCore(me, id);
-    if ('error' in r) out.errors.push(r.error);
-    else out.cards.push({ id, ...r });
-  }
-  return out;
+/** パスワードを忘れた訓練生に、仮パスワードを発行する（本人に口頭で伝え、ログイン後に変更してもらう） */
+export async function issueTempPassword(traineeId: string): Promise<TempPasswordResult> {
+  await requirePerm('manage_trainees');
+  const supabase = await createClient();
+  const { data: target } = await supabase.from('profiles').select('id, role, status, full_name').eq('id', traineeId).maybeSingle();
+  if (!target || target.role !== 'trainee') return { error: 'この訓練生のパスワードを変更する権限がありません' };
+  if (target.status === 'suspended') return { error: '利用停止中です。先に利用を再開してください' };
+  if (target.status === 'invited') return { error: 'まだ登録が済んでいません。共通の登録用QRから登録してもらってください' };
+  // 読み間違えにくい文字だけで8文字
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = (await import('node:crypto')).randomBytes(8);
+  const password = Array.from(bytes, (b) => chars[b % chars.length]).join('');
+  const { error } = await createAdminClient().auth.admin.updateUserById(traineeId, { password });
+  if (error) return { error: '変更できませんでした：' + error.message };
+  await supabase.rpc('log_action', { p_action: 'trainee.temp_password', p_target_type: 'profile', p_target_id: traineeId, p_detail: { name: target.full_name } });
+  return { password };
 }

@@ -58,7 +58,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
         action={
           canManage && (
             <div className="flex flex-wrap gap-2">
-              <LinkButton href="/admin/trainees/invites" variant="secondary">招待QRをまとめて発行</LinkButton>
+              <LinkButton href="/admin/join-qr" variant="secondary">登録用QR（共通）</LinkButton>
               <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
               <LinkButton href="/admin/trainees/new">＋ 訓練生を登録</LinkButton>
             </div>

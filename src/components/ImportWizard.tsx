@@ -70,7 +70,8 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
     const { result } = step;
     return (
       <Card className="space-y-4">
-        <p className="text-lg font-bold">{result.succeeded}人を登録しました。</p>
+        <p className="text-lg font-bold">{result.succeeded}人を名簿に登録しました。</p>
+        <p className="text-sm">本人には<strong>共通の登録用QR</strong>から登録してもらってください。名簿の携帯番号と氏名が一致すれば、このアカウントにつながります。</p>
         {result.failed.length > 0 && (
           <div>
             <p className="font-bold text-red-700">{result.failed.length}人は登録できませんでした：</p>
@@ -80,7 +81,7 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/trainees/invites" className={buttonClass('primary')}>招待QRをまとめて発行する</Link>
+          <Link href="/admin/join-qr" className={buttonClass('primary')}>登録用QR（共通）を表示する</Link>
           <Link href="/admin/trainees" className={buttonClass('secondary')}>訓練生一覧へ</Link>
         </div>
       </Card>

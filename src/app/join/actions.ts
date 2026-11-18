@@ -49,7 +49,26 @@ export async function selfRegister(formData: FormData) {
   if (!cls || !cls.open_for_signup || cls.archived || (cls as any).courses?.archived) back('このクラスは現在登録を受け付けていません');
 
   const { data: dup } = await db.from('trainee_details').select('profile_id').eq('phone', phone!).maybeSingle();
-  if (dup) back('この携帯番号はすでに登録されています。ログイン画面からログインしてください（パスワードを忘れた場合は事務局へ）');
+  if (dup) {
+    // 名簿で先に登録されている人：氏名が一致すれば、そのアカウントで使い始められるようにする
+    const { data: prof } = await db.from('profiles').select('id, org_id, status, full_name, full_name_kana').eq('id', dup.profile_id).single();
+    if (!prof || prof.status !== 'invited') back('この携帯番号はすでに登録されています。ログイン画面からログインしてください（パスワードを忘れた場合は事務局へ）');
+    const norm = (x: string) => x.normalize('NFKC').replace(/\s/g, '');
+    if (norm(prof!.full_name) !== norm(v.full_name)) back('事務局の名簿と氏名が一致しません。名簿に登録されている氏名で入力するか、事務局にお問い合わせください');
+    const { data: u } = await db.auth.admin.getUserById(prof!.id);
+    const loginEmail = u.user?.email ?? phoneToLoginEmail(phone!);
+    const { error: pwErr } = await db.auth.admin.updateUserById(prof!.id, { password: v.password, email_confirm: true });
+    if (pwErr) back('登録できませんでした（' + pwErr.message + '）。事務局にお問い合わせください');
+    await db
+      .from('profiles')
+      .update({ status: 'active', terms_agreed_at: new Date().toISOString(), ...(prof!.full_name_kana ? {} : { full_name_kana: v.full_name_kana }) })
+      .eq('id', prof!.id);
+    await db.from('invitations').update({ revoked_at: new Date().toISOString() }).eq('profile_id', prof!.id).is('used_at', null).is('revoked_at', null);
+    await db.from('audit_logs').insert({ org_id: prof!.org_id, actor_id: prof!.id, action: 'trainee.self_register', target_type: 'profile', target_id: prof!.id, detail: { name: prof!.full_name, roster: true } });
+    const supabase = await createClient();
+    await supabase.auth.signInWithPassword({ email: loginEmail, password: v.password });
+    redirect('/home');
+  }
 
   const loginEmail = phoneToLoginEmail(phone!);
   const { data: created, error } = await db.auth.admin.createUser({ email: loginEmail, password: v.password, email_confirm: true });

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { after } from 'next/server';
 import { notFound } from 'next/navigation';
-import { InvitePanel } from '@/components/InvitePanel';
+import { TempPasswordPanel } from '@/components/TempPasswordPanel';
 import { TraineeForm } from '@/components/TraineeForm';
 import { Button, Card, Notice, PageTitle, type Flash } from '@/components/ui';
 import { hasPerm, requireStaff } from '@/lib/auth';
@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/server';
 import { formatPhone } from '@/lib/phone';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { openChatWithTrainee } from '../../chat/actions';
-import { issueInvite, setTraineeSuspended, updateTrainee } from '../actions';
+import { issueTempPassword, setTraineeSuspended, updateTrainee } from '../actions';
 
 export default async function TraineeDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Flash> }) {
   const me = await requireStaff();
@@ -22,14 +22,13 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   const { data: t } = await supabase.from('profiles').select('*').eq('id', id).eq('role', 'trainee').maybeSingle();
   if (!t) notFound(); // 担当外の訓練生は「存在しない」扱い
 
-  const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: invites }, { data: reads }, { data: surveyHist }, { data: myAnswers }] = await Promise.all([
+  const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: reads }, { data: surveyHist }, { data: myAnswers }] = await Promise.all([
     hasPerm('chat'),
     hasPerm('manage_trainees'),
     hasPerm('view_pii'),
     getClassOptions(),
     supabase.from('trainee_details').select('*').eq('profile_id', id).maybeSingle(),
     supabase.from('enrollments').select('id, class_id, started_on, ended_on, classes(name, courses(name))').eq('trainee_id', id).order('started_on', { ascending: false }),
-    supabase.from('invitations').select('created_at, expires_at, used_at, revoked_at').eq('profile_id', id).order('created_at', { ascending: false }).limit(1),
     supabase.from('announcement_recipients').select('read_at, announcements(id, title, published_at)').eq('trainee_id', id).limit(20),
     supabase.from('survey_recipients').select('responded_at, surveys(id, kind, title, target_date, published_at)').eq('trainee_id', id).limit(100),
     supabase.from('survey_responses').select('survey_id, survey_answers(option_id, text_value, survey_options(label))').eq('trainee_id', id),
@@ -44,7 +43,6 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   // 操作ログは画面を返した後に記録（表示を待たせない）
   if (canPii && detail) after(async () => { await supabase.rpc('log_action', { p_action: 'trainee.view_pii', p_target_type: 'profile', p_target_id: id, p_detail: { name: t.full_name } }); });
   const status = t.status as AccountStatus;
-  const lastInvite = invites?.[0];
 
   return (
     <div className="space-y-6">
@@ -80,16 +78,20 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
         {!canPii && <p className="muted mt-2 text-xs">連絡先（メール・電話）を見る権限がないため表示していません。</p>}
       </Card>
 
-      {canManage && status !== 'suspended' && (
+      {canManage && status === 'invited' && (
         <Card>
-          <h2 className="mb-2 font-bold">{status === 'active' ? 'パスワードの再設定' : '招待'}</h2>
-          {lastInvite && (
-            <p className="muted mb-2 text-sm">
-              前回の発行：{friendlyDateTime(lastInvite.created_at)}（
-              {lastInvite.used_at ? `${friendlyDateTime(lastInvite.used_at)} に登録済み` : lastInvite.revoked_at ? '無効化済み' : new Date(lastInvite.expires_at) < new Date() ? '期限切れ' : '未使用'}）
-            </p>
-          )}
-          <InvitePanel issue={issueInvite.bind(null, id)} name={t.full_name} alreadyActive={status === 'active'} />
+          <h2 className="mb-2 font-bold">登録待ち</h2>
+          <p className="text-sm">
+            まだ本人の登録が済んでいません。<Link href="/admin/join-qr" className="font-bold text-brand-700 underline">共通の登録用QR</Link>
+            から登録してもらってください。名簿の<strong>携帯番号と氏名</strong>が一致すれば、自動的にこのアカウントにつながります。
+          </p>
+        </Card>
+      )}
+
+      {canManage && status === 'active' && (
+        <Card>
+          <h2 className="mb-2 font-bold">パスワードを忘れたとき</h2>
+          <TempPasswordPanel issue={issueTempPassword.bind(null, id)} />
         </Card>
       )}
 
