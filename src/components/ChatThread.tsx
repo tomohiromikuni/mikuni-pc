@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import type { ChatMessage } from '@/lib/chat';
 import { ACCEPT } from '@/lib/upload';
 import { chatDayKey, chatDayLabel, chatTime, useChatRoom } from '@/lib/use-chat';
@@ -38,6 +38,26 @@ export function ChatThread({
   });
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const composing = useRef(false);
+  // PC（マウス操作の画面）だけ Enter で送信。スマホは誤送信を防ぐため改行のまま
+  const [enterToSend, setEnterToSend] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    setEnterToSend(mq.matches);
+    const on = () => setEnterToSend(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
+  /** Enter で送信（Shift+Enter は改行）。日本語の変換中・変換を確定する Enter では送らない */
+  function onKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (!enterToSend || e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    // isComposing：変換中 / keyCode 229：Safari などで変換を確定した Enter
+    if (composing.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    if (!busy) form.current?.requestSubmit();
+  }
 
   // 新しいメッセージが来たら一番下へ
   useEffect(() => {
@@ -114,7 +134,7 @@ export function ChatThread({
         })}
       </div>
 
-      <form onSubmit={onSubmit} className={`shrink-0 border-t border-[#dfe5e2] bg-white px-2 pt-2 ${fullScreen ? 'pb-[calc(0.5rem+env(safe-area-inset-bottom))]' : 'pb-2'}`}>
+      <form ref={form} onSubmit={onSubmit} className={`shrink-0 border-t border-[#dfe5e2] bg-white px-2 pt-2 ${fullScreen ? 'pb-[calc(0.5rem+env(safe-area-inset-bottom))]' : 'pb-2'}`}>
         {error && <p className="mb-1 px-1 text-sm font-semibold text-red-700">{error}</p>}
         {files.length > 0 && (
           <div className="mb-1 flex flex-wrap gap-2 px-1 text-xs">
@@ -141,9 +161,15 @@ export function ChatThread({
             onChange={(e) => setText(e.target.value)}
             rows={1}
             maxLength={4000}
-            placeholder="メッセージを入力"
+            placeholder={enterToSend ? 'メッセージを入力（Enterで送信・Shift+Enterで改行）' : 'メッセージを入力'}
             aria-label="メッセージ"
             className="max-h-36 min-h-10 flex-1 resize-none rounded-[20px] border-0 bg-[#eef2f1] px-4 py-2 leading-6"
+            onKeyDown={onKeyDown}
+            onCompositionStart={() => (composing.current = true)}
+            onCompositionEnd={() => {
+              // 確定の Enter と同じタイミングで終わるため、少し遅らせて解除する
+              setTimeout(() => (composing.current = false), 0);
+            }}
             onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 144) + 'px'; }}
           />
           <button
