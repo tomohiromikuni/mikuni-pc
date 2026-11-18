@@ -1,35 +1,73 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/browser';
 import { uploadAttachment } from '@/lib/upload';
 
-/** チャットの共通処理：新着・既読の即時反映と、メッセージ（＋添付）の送信 */
-export function useChatRoom(roomId: string, orgId: string) {
+/**
+ * チャットの共通処理：新着・既読を自動で反映し、メッセージ（＋添付）を送信する
+ *  1. リアルタイム受信（ログイン情報を渡して購読。権限のある人にだけ届く）
+ *  2. 念のため、画面を開いている間は数秒ごとに新着を確認（受信が切れても必ず更新される）
+ */
+export function useChatRoom(roomId: string, orgId: string, latest: { messageAt: string | null; readAt: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const known = useRef(latest);
+  known.current = latest;
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.rpc('mark_chat_read', { p_room: roomId });
-    const ch = supabase
-      .channel(`room-${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, () => {
-        supabase.rpc('mark_chat_read', { p_room: roomId }).then(() => router.refresh());
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `room_id=eq.${roomId}` }, () => router.refresh())
-      .subscribe();
-    // スマホでアプリを切り替えて戻ってきたときにも最新化
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        supabase.rpc('mark_chat_read', { p_room: roomId });
+    let stopped = false;
+    let refreshing = false;
+    const refresh = () => {
+      if (refreshing) return;
+      refreshing = true;
+      supabase.rpc('mark_chat_read', { p_room: roomId }).then(() => {
         router.refresh();
-      }
+        setTimeout(() => (refreshing = false), 800);
+      });
     };
+
+    // 1. リアルタイム受信
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) await supabase.realtime.setAuth(data.session.access_token);
+      if (stopped) return;
+      channel = supabase
+        .channel(`room-${roomId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, refresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reads', filter: `room_id=eq.${roomId}` }, () => router.refresh())
+        .subscribe();
+    })();
+    supabase.rpc('mark_chat_read', { p_room: roomId });
+
+    // 2. 数秒ごとの確認（画面が表示されている間だけ）
+    const poll = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const [{ data: m }, { data: r }] = await Promise.all([
+        supabase.from('chat_messages').select('created_at').eq('room_id', roomId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('chat_reads').select('last_read_at').eq('room_id', roomId).order('last_read_at', { ascending: false }),
+      ]);
+      const newMsg = m?.created_at && m.created_at !== known.current.messageAt;
+      // 相手の既読が進んだか（自分の既読は除外できないので、最新の値が変わったら更新）
+      const reads = (r ?? []).map((x) => x.last_read_at).join(',');
+      const readsChanged = lastReads !== null && reads !== lastReads;
+      lastReads = reads;
+      if (newMsg) refresh();
+      else if (readsChanged) router.refresh();
+    };
+    let lastReads: string | null = null;
+    const timer = setInterval(poll, 4000);
+
+    // スマホでアプリを切り替えて戻ってきたら、すぐ確認
+    const onVisible = () => document.visibilityState === 'visible' && refresh();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      supabase.removeChannel(ch);
+      stopped = true;
+      clearInterval(timer);
+      if (channel) supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [roomId, router]);

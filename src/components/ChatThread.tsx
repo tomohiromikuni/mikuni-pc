@@ -32,7 +32,10 @@ export function ChatThread({
 }) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<File[]>([]);
-  const { send, busy, error } = useChatRoom(roomId, orgId);
+  const { send, busy, error } = useChatRoom(roomId, orgId, {
+    messageAt: messages.at(-1)?.created_at ?? null,
+    readAt: otherReadAt,
+  });
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 

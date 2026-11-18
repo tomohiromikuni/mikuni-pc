@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AutoRefresh } from '@/components/AutoRefresh';
 import { Card, Notice, PageTitle } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
 import { CHAT_STATUS_LABEL, type ChatStatus } from '@/lib/chat';
@@ -30,6 +31,7 @@ export default async function ChatInbox({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-4">
+      <AutoRefresh seconds={10} />
       <PageTitle>チャット（事務局窓口）</PageTitle>
       <Notice error={sp.error} />
       <div className="flex flex-wrap gap-2">
