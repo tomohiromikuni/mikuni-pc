@@ -4,16 +4,17 @@ import { requireStaff } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { formatDate } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
-import { addCalendarDay, deleteCalendarDay, importHolidaysNow } from './actions';
+import { addCalendarDay, addCategory, deleteCalendarDay, deleteCategory, importHolidaysNow, renameCategory } from './actions';
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Flash> }) {
   const me = await requireStaff();
   const sp = await searchParams;
   const supabase = await createClient();
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
-  const [{ data: days }, { data: cov }] = await Promise.all([
+  const [{ data: days }, { data: cov }, { data: cats }] = await Promise.all([
     supabase.from('calendar_days').select('day, kind, name').gte('day', today).order('day').limit(120),
     supabase.rpc('push_coverage'),
+    supabase.from('announcement_categories').select('id, name').order('sort_order'),
   ]);
   const c = (cov ?? [])[0] ?? { trainees: 0, with_push: 0 };
   const isAdmin = me.role === 'admin';
@@ -73,6 +74,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {(days ?? []).length === 0 && <li className="muted py-2">登録されていません。「祝日データを取り込む」を押してください。</li>}
         </ul>
       </Card>
+
+      {isAdmin && (
+        <Card className="space-y-3">
+          <h2 className="font-bold">お知らせのカテゴリー</h2>
+          <ul className="space-y-2">
+            {(cats ?? []).map((c) => (
+              <li key={c.id} className="flex items-center gap-2">
+                <form action={renameCategory.bind(null, c.id)} className="flex flex-1 gap-2">
+                  <input name="name" defaultValue={c.name} aria-label="カテゴリー名" className="max-w-60" />
+                  <Button type="submit" variant="secondary" className="min-h-9 px-3 py-1 text-sm">名前を保存</Button>
+                </form>
+                <form action={deleteCategory.bind(null, c.id)}><button className="text-xs text-red-700 underline">削除</button></form>
+              </li>
+            ))}
+          </ul>
+          <form action={addCategory} className="flex gap-2">
+            <input name="name" placeholder="新しいカテゴリー名" aria-label="新しいカテゴリー名" className="max-w-60" required />
+            <Button type="submit" variant="secondary">追加</Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }

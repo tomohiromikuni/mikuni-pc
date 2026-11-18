@@ -46,6 +46,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hist = ((surveyHist ?? []) as any[]).filter((h) => h.surveys).sort((a, b) => (b.surveys.published_at ?? '').localeCompare(a.surveys.published_at ?? ''));
   const current = (enrollments ?? []).find((e) => !e.ended_on);
+  if (canPii && detail) await supabase.rpc('log_action', { p_action: 'trainee.view_pii', p_target_type: 'profile', p_target_id: id, p_detail: { name: t.full_name } });
   const status = t.status as AccountStatus;
   const lastInvite = invites?.[0];
 

@@ -41,3 +41,32 @@ export async function deleteCalendarDay(day: string) {
   await supabase.from('calendar_days').delete().eq('org_id', me.org_id).eq('day', day);
   revalidatePath('/admin/settings');
 }
+
+export async function addCategory(f: FormData) {
+  const me = await requireAdmin();
+  const name = String(f.get('name') ?? '').trim().slice(0, 50);
+  if (!name) back('error', 'カテゴリー名を入力してください');
+  const supabase = await createClient();
+  const { count } = await supabase.from('announcement_categories').select('id', { count: 'exact', head: true });
+  await supabase.from('announcement_categories').insert({ org_id: me.org_id, name, sort_order: count ?? 0 });
+  revalidatePath('/admin/settings');
+  back('message', `カテゴリー「${name}」を追加しました`);
+}
+
+export async function renameCategory(id: string, f: FormData) {
+  await requireAdmin();
+  const name = String(f.get('name') ?? '').trim().slice(0, 50);
+  if (!name) return;
+  const supabase = await createClient();
+  await supabase.from('announcement_categories').update({ name }).eq('id', id);
+  revalidatePath('/admin/settings');
+}
+
+export async function deleteCategory(id: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+  // 使用中のお知らせは「カテゴリーなし」になる
+  await supabase.from('announcements').update({ category_id: null }).eq('category_id', id);
+  await supabase.from('announcement_categories').delete().eq('id', id);
+  revalidatePath('/admin/settings');
+}

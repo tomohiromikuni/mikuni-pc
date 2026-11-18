@@ -34,6 +34,12 @@ export async function requireTrainee(): Promise<Profile> {
 export async function requireStaff(): Promise<Profile> {
   const me = await requireActive();
   if (me.role === 'trainee') redirect('/home');
+  // 2段階認証を必須にしている場合（Vercel の環境変数 REQUIRE_STAFF_MFA=true）
+  if (process.env.REQUIRE_STAFF_MFA === 'true') {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (data?.currentLevel !== 'aal2') redirect('/mfa');
+  }
   return me;
 }
 

@@ -11,6 +11,9 @@ select cron.schedule('publish-due-announcements', '* * * * *', $$ select public.
 -- 回答期限を過ぎた出欠・アンケートを締め切る（5分ごと）
 select cron.schedule('close-due-surveys', '*/5 * * * *', $$ select public.close_due_surveys(); $$);
 
+-- 修了予定日の90日後にアカウントを自動停止（毎日 4:00 日本時間 ＝ 19:00 UTC）
+select cron.schedule('suspend-completed-trainees', '0 19 * * *', $$ select public.suspend_completed_trainees(90); $$);
+
 -- 通知の送信（1分ごと）：アプリの送信処理を呼び出す
 select cron.schedule('dispatch-notifications', '* * * * *', $cron$
   select net.http_post(

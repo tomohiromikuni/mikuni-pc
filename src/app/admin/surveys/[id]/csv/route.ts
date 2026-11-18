@@ -14,6 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { data: s } = await supabase.from('surveys').select('title').eq('id', id).maybeSingle();
   if (!s) return new NextResponse('見つかりません', { status: 404 });
   const { questions, people } = await loadSurveyResults(id);
+  await supabase.rpc('log_action', { p_action: 'survey.export_csv', p_target_type: 'survey', p_target_id: id, p_detail: { title: s.title, rows: people.length } });
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '未回答');
   const lines = [
     ['氏名', 'フリガナ', '所属', ...questions.map((q) => q.label), '回答日時'],

@@ -106,6 +106,7 @@ export async function importTrainees(rows: ImportInput[], fileName: string): Pro
     failed: result.failed.length,
     errors: result.failed,
   });
+  await supabase.rpc('log_action', { p_action: 'trainee.import', p_target_type: 'import', p_detail: { file: fileName.slice(0, 200), succeeded: result.succeeded, failed: result.failed.length } });
   revalidatePath('/admin/trainees');
   return result;
 }
@@ -188,6 +189,7 @@ async function issueInviteCore(me: Me, traineeId: string): Promise<{ url: string
   const { error } = await admin.from('invitations').insert({ org_id: me.org_id, profile_id: traineeId, token_hash: hash, expires_at: expiresAt, created_by: me.id });
   if (error) return { error: '発行できませんでした：' + error.message };
 
+  await supabase.rpc('log_action', { p_action: 'invite.issue', p_target_type: 'profile', p_target_id: traineeId, p_detail: { name: target.full_name } });
   const url = `${env.siteUrl()}/invite/${token}`;
   const qr = await QRCode.toDataURL(url, { width: 320, margin: 1 });
   return { url, qr, expiresAt, name: target.full_name };
