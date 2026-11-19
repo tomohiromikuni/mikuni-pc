@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { AutoRefresh } from '@/components/AutoRefresh';
+import { PushSetup } from '@/components/PushSetup';
 import { Notice } from '@/components/ui';
+import { env } from '@/lib/env';
 import { requirePerm } from '@/lib/auth';
 import type { ChatStatus } from '@/lib/chat';
 import { hasFinished } from '@/lib/completion';
@@ -25,7 +27,7 @@ type Row = {
 
 
 /** 学校側のチャット一覧（LINEのトーク一覧のように、名簿の全員を表示） */
-export default async function ChatList({ searchParams }: { searchParams: Promise<{ course?: string; q?: string; filter?: string; error?: string; view?: string }> }) {
+export default async function ChatList({ searchParams }: { searchParams: Promise<{ course?: string; q?: string; filter?: string; error?: string; message?: string; view?: string }> }) {
   const me = await requirePerm('chat');
   const sp = await searchParams;
   const supabase = await createClient();
@@ -105,7 +107,9 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
     <div className="space-y-4">
       <AutoRefresh seconds={10} />
       <h1 className="text-xl font-bold">チャット</h1>
-      <Notice error={sp.error} />
+      <Notice error={sp.error} message={sp.message} />
+      {/* この端末で通知を受け取っていなければ案内（受け取り中なら表示しない） */}
+      <PushSetup vapidKey={env.vapidPublicKey()} compact audience="staff" />
 
       <div role="tablist" aria-label="受講中と修了生" className="grid max-w-sm grid-cols-2 gap-1 rounded-xl bg-black/5 p-1">
         <Link role="tab" aria-selected={view === 'current'} href="/admin/chat" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'current' ? 'surface shadow-sm text-brand-700' : 'muted'}`}>

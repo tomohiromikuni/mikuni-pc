@@ -29,9 +29,9 @@ export function AdminMain({ children }: { children: ReactNode }) {
 }
 
 const TABS = [
-  { href: '/admin', label: 'ホーム', exact: true, icon: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z' },
   { href: '/admin/chat', label: 'チャット', icon: 'M4 4h16v12H9l-5 4z' },
   { href: '/admin/announcements', label: 'お知らせ', icon: 'M4 5h16v11H8l-4 4z' },
+  { href: '/admin/surveys', label: '出欠', icon: 'M9 11l3 3 8-8M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11' },
   { href: '/admin/trainees', label: '訓練生', icon: 'M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .8 3.5 2.8 3.5 5.5' },
   { href: '/admin/more', label: 'その他', icon: 'M4 7h16M4 12h16M4 17h16' },
 ];
@@ -68,7 +68,7 @@ export function AdminBottomNav({ initialReply, canChat }: { initialReply: number
     <nav aria-label="管理メニュー" className="surface fixed inset-x-0 bottom-0 z-20 border-t pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
       <ul className="grid" style={{ gridTemplateColumns: `repeat(${canChat ? 5 : 4}, minmax(0, 1fr))` }}>
         {TABS.filter((t) => canChat || t.href !== '/admin/chat').map((t) => {
-          const active = t.exact ? path === t.href : path === t.href || path.startsWith(t.href + '/');
+          const active = path === t.href || path.startsWith(t.href + '/') || (t.href === '/admin/more' && /^\/admin\/(settings|staff|setup)(\/|$)/.test(path));
           return (
             <li key={t.href}>
               <Link

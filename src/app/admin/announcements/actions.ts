@@ -6,8 +6,6 @@ import { jstLocalToIso } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { parseTargetValues } from '@/lib/targets-parse';
 
-const PRIORITIES = ['normal', 'important', 'urgent'] as const;
-
 function parseTargets(f: FormData) {
   return parseTargetValues(f.getAll('target').map(String));
 }
@@ -19,22 +17,18 @@ export async function saveAnnouncementDraft(f: FormData): Promise<DraftResult> {
   const me = await requirePerm('announce');
   const title = String(f.get('title') ?? '').trim();
   const body = String(f.get('body') ?? '').trim();
-  const priority = String(f.get('priority') ?? 'normal');
-  const categoryId = String(f.get('category_id') ?? '') || null;
-  const notifyNow = f.get('notify_immediately') === 'on' && priority === 'urgent' && me.role === 'admin';
   const mode = String(f.get('mode') ?? 'now');
   const publishAt = jstLocalToIso(String(f.get('publish_at') ?? ''));
   const targets = parseTargets(f);
 
   if (!title) return { error: 'タイトルを入力してください' };
-  if (!PRIORITIES.includes(priority as (typeof PRIORITIES)[number])) return { error: '優先度が正しくありません' };
   if (mode !== 'draft' && targets.length === 0) return { error: '宛先を選んでください' };
   if (mode === 'schedule' && (!publishAt || new Date(publishAt) <= new Date())) return { error: '予約日時は現在より後の日時を指定してください' };
 
   const supabase = await createClient();
   const { data: a, error } = await supabase
     .from('announcements')
-    .insert({ org_id: me.org_id, title, body, priority, category_id: categoryId, created_by: me.id, notify_immediately: notifyNow })
+    .insert({ org_id: me.org_id, title, body, created_by: me.id })
     .select('id')
     .single();
   if (error || !a) return { error: '保存できませんでした：' + error?.message };
@@ -91,8 +85,6 @@ export async function editAnnouncement(id: string, f: FormData) {
     .update({
       title: String(f.get('title') ?? '').trim(),
       body: String(f.get('body') ?? '').trim(),
-      priority: String(f.get('priority') ?? 'normal'),
-      category_id: String(f.get('category_id') ?? '') || null,
       ...(cur?.status === 'published' ? { edited_at: new Date().toISOString() } : {}),
     })
     .eq('id', id);

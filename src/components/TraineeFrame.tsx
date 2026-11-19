@@ -8,7 +8,7 @@ export function TraineeFrame({ appName, unread, chatUnread, todo, staffMode = fa
   const path = usePathname();
   const modeBar = staffMode && (
     <div className="sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#1f2a26] px-4 py-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-sm text-white">
-      <span className="font-bold">訓練生モード</span>
+      <span className="font-bold">訓練生の画面を表示中</span>
       <a href="/admin" className="rounded-full bg-white/15 px-3 py-1 font-bold text-white hover:bg-white/25">管理画面に戻る</a>
     </div>
   );

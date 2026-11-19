@@ -31,18 +31,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </form>
         </div>
         <div className="px-2 pb-2">
-          <AdminNav isAdmin={me.role === 'admin'} />
+          <AdminNav />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 space-y-2 px-2 pb-3">
           <a
             href="/home"
-            className="mt-2 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
+            className="flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
           >
-            訓練生モードに切り替え
+            訓練生の画面を見る
           </a>
+          <p className="muted px-2 text-xs" title="アプリのバージョン">
+            バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
+            {process.env.NEXT_PUBLIC_BUILD_ID && <span className="ml-1 opacity-70">({process.env.NEXT_PUBLIC_BUILD_ID})</span>}
+          </p>
         </div>
-        <p className="muted absolute bottom-0 px-4 pb-3 text-xs" title="アプリのバージョン">
-          バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
-          {process.env.NEXT_PUBLIC_BUILD_ID && <span className="ml-1 opacity-70">({process.env.NEXT_PUBLIC_BUILD_ID})</span>}
-        </p>
       </aside>
       <AdminMain>{children}</AdminMain>
       <AdminBottomNav initialReply={reply} canChat={canChat} />

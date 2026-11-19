@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { PushSetup } from '@/components/PushSetup';
-import { PriorityBadge, UnreadDot } from '@/components/ui';
+import { UnreadDot } from '@/components/ui';
 import { requireTrainee } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { friendlyDateTime } from '@/lib/format';
@@ -34,7 +34,6 @@ export default async function HomePage() {
     return <GraduateHome name={me.full_name} status={status} report={todo[0] ? { id: todo[0].id, title: todo[0].title } : null} />;
   }
   const unread = items.filter((a) => !a.read).length;
-  const alerts = items.filter((a) => a.priority !== 'normal' && !a.read);
   const latest = items.slice(0, 5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cls = (enr as any)?.classes;
@@ -70,17 +69,6 @@ export default async function HomePage() {
 
         <PushSetup vapidKey={env.vapidPublicKey()} compact />
 
-        {alerts.map((a) => (
-          <Link
-            key={a.id}
-            href={`/announcements/${a.id}`}
-            className={`block rounded-2xl border-2 px-4 py-3 ${a.priority === 'urgent' ? 'border-red-600 bg-red-50 text-red-950' : 'border-amber-400 bg-amber-50 text-amber-950'}`}
-          >
-            <PriorityBadge priority={a.priority} />
-            <span className="mt-1 block text-base font-bold">{a.title}</span>
-            <span className="block text-xs">{friendlyDateTime(a.published_at)}</span>
-          </Link>
-        ))}
 
         <section className="surface space-y-2.5 rounded-2xl p-3.5">
           <div className="flex items-center justify-between">

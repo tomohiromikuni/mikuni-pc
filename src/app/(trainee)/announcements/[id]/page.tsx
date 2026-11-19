@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
 import { AttachmentList } from '@/components/AttachmentList';
-import { PriorityBadge } from '@/components/ui';
 import { listAnnouncementAttachments } from '@/lib/attachments';
 import { requireTrainee } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
@@ -27,10 +26,6 @@ export default async function AnnouncementDetail({ params }: { params: Promise<{
     <article className="space-y-4">
       <Link href="/announcements" className="text-sm font-bold text-brand-700">‹ お知らせ一覧</Link>
       <header className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <PriorityBadge priority={a.priority} />
-          {a.category && <span className="muted text-xs">{a.category}</span>}
-        </div>
         <h1 className="text-xl font-bold">{a.title}</h1>
         <p className="muted text-sm">
           {friendlyDateTime(a.published_at)}

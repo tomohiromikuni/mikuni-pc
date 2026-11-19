@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { PriorityBadge, UnreadDot } from '@/components/ui';
+import { UnreadDot } from '@/components/ui';
 import { friendlyDateTime } from '@/lib/format';
 import type { TraineeAnnouncement } from '@/lib/trainee-data';
 
@@ -12,12 +12,10 @@ export function AnnouncementList({ items, empty = 'お知らせはまだあり�
           <Link href={`/announcements/${a.id}`} className="flex items-start gap-3 px-4 py-3 hover:brightness-95">
             <span className="mt-2 w-2.5">{!a.read && <UnreadDot />}</span>
             <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-2">
-                <PriorityBadge priority={a.priority} />
-                {a.category && <span className="muted text-xs">{a.category}</span>}
-                {a.attachmentCount > 0 && <span className="muted text-xs" aria-label="添付あり">📎{a.attachmentCount}</span>}
+              <span className="flex items-center gap-2">
+                <span className={`min-w-0 flex-1 truncate ${a.read ? '' : 'font-bold'}`}>{a.title}</span>
+                {a.attachmentCount > 0 && <span className="muted shrink-0 text-xs" aria-label="添付あり">📎{a.attachmentCount}</span>}
               </span>
-              <span className={`block truncate ${a.read ? '' : 'font-bold'}`}>{a.title}</span>
               <span className="muted block text-xs">{friendlyDateTime(a.published_at)}</span>
             </span>
           </Link>

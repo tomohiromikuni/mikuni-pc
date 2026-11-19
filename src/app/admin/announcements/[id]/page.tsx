@@ -4,7 +4,7 @@ import { AnnouncementFields } from '@/components/AnnouncementFields';
 import { AttachmentList } from '@/components/AttachmentList';
 import { AttachmentManager } from '@/components/AttachmentManager';
 import { listAnnouncementAttachments } from '@/lib/attachments';
-import { Button, Card, Notice, PageTitle, PriorityBadge, type Flash } from '@/components/ui';
+import { Button, Card, Notice, PageTitle, type Flash } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
@@ -15,13 +15,12 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await createClient();
-  const [{ data: a }, { data: categories }] = await Promise.all([
+  const [{ data: a }] = await Promise.all([
     supabase
       .from('announcements')
       .select('*, announcement_targets(target_type, courses(name), classes(name, courses(name))), announcement_recipients(read_at, trainee_id, profiles(full_name, full_name_kana))')
       .eq('id', id)
       .maybeSingle(),
-    supabase.from('announcement_categories').select('id, name').order('sort_order'),
   ]);
   if (!a) notFound();
   const attachments = await listAnnouncementAttachments(id);
@@ -41,7 +40,6 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
     <div className="space-y-6">
       <Link href="/admin/announcements" className="text-sm font-bold text-brand-700">‹ お知らせ一覧</Link>
       <PageTitle>
-        <span className="mr-2 align-middle"><PriorityBadge priority={a.priority} /></span>
         {a.title}
       </PageTitle>
       <Notice error={sp.error} message={sp.message} />
@@ -109,7 +107,7 @@ export default async function AdminAnnouncementDetail({ params, searchParams }: 
           <details>
             <summary className="cursor-pointer font-bold">内容を編集する</summary>
             <form action={editAnnouncement.bind(null, id)} className="mt-4 space-y-4">
-              <AnnouncementFields categories={categories ?? []} values={a} />
+              <AnnouncementFields values={a} />
               {a.status === 'published' && <p className="muted text-xs">配信済みのお知らせを編集すると、訓練生の画面に「編集済み」と表示されます。</p>}
               <Button type="submit">保存</Button>
             </form>

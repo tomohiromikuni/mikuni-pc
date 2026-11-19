@@ -158,7 +158,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
       {me.role === 'admin' && t.role === 'trainee' && status === 'active' && (
         <Card>
           <h2 className="mb-2 font-bold">運営メンバーにする</h2>
-          <p className="mb-3 text-sm">この人を管理者・スタッフにします。今のログイン（携帯番号）のまま、管理画面と訓練生モードを切り替えて使えます。訓練生としての所属・履歴もそのままです。</p>
+          <p className="mb-3 text-sm">この人を管理者・スタッフにします。今のログイン（携帯番号）のまま、管理画面と訓練生の画面を切り替えて使えます。訓練生としての所属・履歴もそのままです。</p>
           <form action={promoteTrainee.bind(null, id)} className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="admin" defaultChecked /> 管理者</label>
             <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="staff" /> スタッフ（権限はあとで設定）</label>

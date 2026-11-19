@@ -1,3 +1,4 @@
+import { SettingsTabs } from '@/components/AdminNav';
 import Link from 'next/link';
 import { Card, PageTitle } from '@/components/ui';
 import { requireAdmin } from '@/lib/auth';
@@ -44,7 +45,7 @@ export default async function SetupPage() {
     { label: 'データベース：通知（段階5）', ok: push, fix: SQL },
     { label: 'データベース：スタッフ・操作ログ（段階6）', ok: audit, fix: SQL },
     { label: 'データベース：共通QRからの登録', ok: signup, fix: SQL },
-    { label: 'データベース：運営メンバーの訓練生モード', ok: dual, fix: 'Supabase の SQL Editor で supabase/setup/update-to-0.15.sql を貼り付けて Run' },
+    { label: 'データベース：運営メンバーが訓練生の画面を使う機能', ok: dual, fix: 'Supabase の SQL Editor で supabase/setup/update-to-0.15.sql を貼り付けて Run' },
     { label: 'データベース：訓練生一覧の目印（通知・欠席）', ok: overview, fix: 'Supabase の SQL Editor で supabase/setup/update-to-0.13.sql を貼り付けて Run' },
     { label: '通知の鍵（VAPID）', ok: !!env.vapidPublicKey() && !!process.env.VAPID_PRIVATE_KEY, fix: 'Vercel の Environment Variables に NEXT_PUBLIC_VAPID_PUBLIC_KEY と VAPID_PRIVATE_KEY を追加して Redeploy' },
     { label: '定期実行の合言葉（CRON_SECRET）', ok: (process.env.CRON_SECRET ?? '').length >= 16, fix: 'Vercel の Environment Variables に CRON_SECRET を追加して Redeploy' },
@@ -54,13 +55,13 @@ export default async function SetupPage() {
       fix: 'Supabase で pg_cron と pg_net を有効にし、supabase/setup/cron.sql の★を書き換えて実行',
       detail: stuck > 0 ? `送信されずに10分以上たった通知が ${stuck} 件あります` : undefined,
     },
-    { label: '祝日データ', ok: holidays > 0, fix: '「通知と設定」画面で「内閣府の祝日データを取り込む」を押す' },
+    { label: '祝日データ', ok: holidays > 0, fix: '「設定」の「通知・休みの日」で「内閣府の祝日データを取り込む」を押す' },
   ];
   const done = checks.filter((c) => c.ok).length;
 
   return (
     <div className="space-y-4">
-      <PageTitle>設定チェック</PageTitle>
+      <SettingsTabs isAdmin />
       <p>{done === checks.length ? '✅ すべての設定が完了しています。' : `${checks.length}項目中 ${done}項目が完了しています。上から順に設定してください。`}</p>
       <Card className="p-0">
         <ul className="divide-y line">
@@ -78,7 +79,7 @@ export default async function SetupPage() {
       </Card>
       <p className="text-sm">
         SQLファイルは GitHub の <a className="text-brand-700 underline" href="https://github.com/tomohiromikuni/mikuni-pc/blob/main/supabase/setup/update-to-0.8.sql" target="_blank" rel="noreferrer">update-to-0.8.sql</a> から、右上のコピーボタンでコピーできます。
-        設定後にこの画面を開き直すと、結果が更新されます。<Link href="/admin" className="ml-2 text-brand-700 underline">ダッシュボードへ</Link>
+        設定後にこの画面を開き直すと、結果が更新されます。
       </p>
     </div>
   );

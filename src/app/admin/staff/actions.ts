@@ -126,6 +126,6 @@ export async function promoteTrainee(id: string, f: FormData) {
   revalidatePath('/admin/staff');
   redirect(
     `/admin/staff/${id}?message=` +
-      encodeURIComponent(`${role === 'admin' ? '管理者' : 'スタッフ'}にしました。今のログイン（携帯番号）のまま、管理画面と訓練生モードを切り替えて使えます`),
+      encodeURIComponent(`${role === 'admin' ? '管理者' : 'スタッフ'}にしました。今のログイン（携帯番号）のまま、管理画面と訓練生の画面を切り替えて使えます`),
   );
 }

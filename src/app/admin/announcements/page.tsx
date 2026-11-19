@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Card, LinkButton, Notice, PageTitle, PriorityBadge, type Flash } from '@/components/ui';
+import { Card, LinkButton, Notice, PageTitle, type Flash } from '@/components/ui';
 import { hasPerm, requireStaff } from '@/lib/auth';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
@@ -18,7 +18,7 @@ export default async function AdminAnnouncements({ searchParams }: { searchParam
   const supabase = await createClient();
   const { data } = await supabase
     .from('announcements')
-    .select('id, title, priority, status, publish_at, published_at, created_at, announcement_categories(name), announcement_recipients(read_at), profiles!announcements_created_by_fkey(full_name)')
+    .select('id, title, status, publish_at, published_at, created_at, announcement_recipients(read_at), profiles!announcements_created_by_fkey(full_name)')
     .eq('status', tab)
     .order(tab === 'published' ? 'published_at' : 'created_at', { ascending: false })
     .limit(100);
@@ -44,12 +44,11 @@ export default async function AdminAnnouncements({ searchParams }: { searchParam
             return (
               <li key={a.id}>
                 <Link href={`/admin/announcements/${a.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-black/5">
-                  <PriorityBadge priority={a.priority} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{a.title}</span>
                     <span className="muted text-xs">
                       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                      {(a.announcement_categories as any)?.name ?? 'カテゴリーなし'}・作成 {(a.profiles as any)?.full_name ?? ''}
+                      作成 {(a.profiles as any)?.full_name ?? ''}
                     </span>
                   </span>
                   <span className="muted text-right text-sm">

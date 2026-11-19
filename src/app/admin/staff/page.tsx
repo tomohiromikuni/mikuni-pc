@@ -1,3 +1,4 @@
+import { SettingsTabs } from '@/components/AdminNav';
 import Link from 'next/link';
 import { Card, LinkButton, Notice, PageTitle, type Flash } from '@/components/ui';
 import { requireAdmin } from '@/lib/auth';
@@ -17,6 +18,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
     .order('full_name');
   return (
     <div className="space-y-4">
+      <SettingsTabs isAdmin />
       <PageTitle action={<LinkButton href="/admin/staff/new">＋ スタッフを追加</LinkButton>}>スタッフ・管理者</PageTitle>
       <Notice error={sp.error} message={sp.message} />
       <Card className="overflow-x-auto p-0">
