@@ -140,7 +140,7 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
         <h2 className="font-bold">1. テンプレートに入力する</h2>
         <p className="text-sm">
           見出しは「{['氏名', 'フリガナ', '電話番号', 'メールアドレス', 'コース', 'クラス', '入校日', '修了予定日'].join('・')}」です。
-          氏名と電話番号（携帯）は必須、メールアドレスは任意です。コース・クラスは「コース・クラス」画面に登録した名前と同じにしてください。
+          氏名と電話番号（携帯）は必須、メールアドレスは任意です。コース（期）・クラスは「訓練生・クラス」画面に登録した名前と同じにしてください。
         </p>
         <Button variant="secondary" onClick={downloadTemplate}>テンプレート（CSV）をダウンロード</Button>
       </Card>

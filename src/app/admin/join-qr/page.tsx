@@ -14,14 +14,14 @@ export default async function JoinQrPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Link href="/admin/courses" className="text-sm font-bold text-brand-700">‹ コース・クラス</Link>
+        <Link href="/admin/trainees" className="text-sm font-bold text-brand-700">‹ 訓練生・クラス</Link>
         <PrintButton />
       </div>
       <p className="text-sm print:hidden">
         このQRは全員共通です。教室に掲示したり、オリエンテーション資料に印刷してください。
         いま登録を受け付けているクラス：
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <strong>{(open ?? []).map((k: any) => `${k.courses?.name} / ${k.name}`).join('、') || 'なし（コース・クラス画面で「登録受付中」にしてください）'}</strong>
+        <strong>{(open ?? []).map((k: any) => `${k.courses?.name} / ${k.name}`).join('、') || 'なし（訓練生・クラス画面の「期の設定」で「登録受付中」にしてください）'}</strong>
       </p>
       <div className="mx-auto max-w-md rounded-2xl border-2 border-gray-300 bg-white p-8 text-center text-black">
         <p className="text-lg font-bold">{env.appName}</p>

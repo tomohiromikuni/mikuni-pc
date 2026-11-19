@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { LinkButton, Notice, type Flash } from '@/components/ui';
+import { Button, Field, LinkButton, Notice, type Flash } from '@/components/ui';
 import { hasPerm, requireStaff } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
+import { createClass, createCourse, renameClass, setClassArchived, setClassSignup, setCourseArchived, updateCourse } from '../courses/actions';
 
-type Search = Flash & { course?: string; class?: string; status?: string; q?: string };
+type Search = Flash & { course?: string; class?: string; status?: string; q?: string; settings?: string };
 
 type Person = {
   id: string;
@@ -29,14 +30,15 @@ const STATUS_STYLE: Record<AccountStatus, string> = {
 
 /** 管理画面「訓練生」一覧（デザイン案B：期生ごとのカード表示） */
 export default async function TraineesPage({ searchParams }: { searchParams: Promise<Search> }) {
-  await requireStaff();
+  const me = await requireStaff();
+  const isAdmin = me.role === 'admin';
   const sp = await searchParams;
   const supabase = await createClient();
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
 
   const [canManage, { data: courses }, { data: trainees }, overview] = await Promise.all([
     hasPerm('manage_trainees'),
-    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(id, name, archived)').order('starts_on', { ascending: false, nullsFirst: false }),
+    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(id, name, archived, open_for_signup, created_at)').order('starts_on', { ascending: false, nullsFirst: false }),
     supabase
       .from('profiles')
       .select('id, full_name, full_name_kana, status, trainee_details(phone), enrollments(ended_on, class_id, classes(name, course_id))')
@@ -92,7 +94,10 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
     .filter((p) => (sp.status ? p.status === sp.status : p.status !== 'suspended'));
   const waiting = inCourse.filter((p) => p.status === 'invited').length;
   const suspended = inCourse.filter((p) => p.status === 'suspended').length;
-  const classes = (course?.classes ?? []).filter((k: { archived: boolean }) => !k.archived);
+  type ClassRow = { id: string; name: string; archived: boolean; open_for_signup: boolean; created_at: string };
+  const allClasses: ClassRow[] = [...(course?.classes ?? [])].sort((a: ClassRow, b: ClassRow) => a.created_at.localeCompare(b.created_at));
+  const classes = allClasses.filter((k) => !k.archived);
+  const settingsOpen = isAdmin && !!course && !searching && sp.settings === '1';
 
   const href = (p: Partial<Search>) => {
     const u = new URLSearchParams();
@@ -123,6 +128,20 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
           <span>すべての訓練生</span>
           <span className="muted text-sm">{people.filter((p) => p.status !== 'suspended').length}</span>
         </Link>
+        {isAdmin && (
+          <details className="pt-2">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center rounded-xl border-2 border-dashed border-[#b9c6c1] font-bold text-brand-700">
+              ＋ 新しい期を作る
+            </summary>
+            <form action={createCourse} className="surface mt-2 space-y-3 rounded-xl border p-3">
+              <Field label="期の名前"><input name="name" required placeholder="例：2027年2月期" /></Field>
+              <Field label="開始日"><input name="starts_on" type="date" /></Field>
+              <Field label="終了日"><input name="ends_on" type="date" /></Field>
+              <Field label="最初のクラス（任意）"><input name="first_class" placeholder="例：A組" /></Field>
+              <Button type="submit" className="w-full">作成する</Button>
+            </form>
+          </details>
+        )}
         {finished.length > 0 && (
           <>
             <p className="muted px-2 pt-4 pb-1 text-[13px] font-bold">修了した期</p>
@@ -136,7 +155,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
         )}
         {current.length === 0 && finished.length === 0 && (
           <p className="muted px-2 text-sm">
-            まだ期生がありません。<Link href="/admin/courses" className="text-brand-700 underline">コース・クラス</Link>で登録してください。
+            まだ期生がありません。{isAdmin ? '下の「＋ 新しい期を作る」から作成してください。' : '管理者に作成を依頼してください。'}
           </p>
         )}
       </nav>
@@ -158,6 +177,16 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
           </div>
           {canManage && (
             <div className="flex flex-wrap gap-2">
+              {isAdmin && course && !searching && (
+                <LinkButton
+                  href={settingsOpen ? `/admin/trainees?course=${course.id}` : `/admin/trainees?course=${course.id}&settings=1`}
+                  variant="secondary"
+                  aria-expanded={settingsOpen}
+                  className={settingsOpen ? 'border-2 border-brand-600 bg-brand-50 text-brand-700' : ''}
+                >
+                  期の設定 {settingsOpen ? '▲' : '▼'}
+                </LinkButton>
+              )}
               <LinkButton href="/admin/join-qr" variant="secondary">登録用QR</LinkButton>
               <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
               <LinkButton href="/admin/trainees/new">＋ 登録</LinkButton>
@@ -165,6 +194,54 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
           )}
         </div>
         <Notice error={sp.error} message={sp.message} />
+
+        {settingsOpen && course && (
+          <section aria-label="期の設定" className="surface space-y-4 rounded-2xl border-2 border-brand-600 p-4">
+            <form action={updateCourse.bind(null, course.id)} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
+              <Field label="期の名前"><input name="name" defaultValue={course.name} required /></Field>
+              <Field label="開始日"><input name="starts_on" type="date" defaultValue={course.starts_on ?? ''} /></Field>
+              <Field label="終了日"><input name="ends_on" type="date" defaultValue={course.ends_on ?? ''} /></Field>
+              <Button type="submit" variant="secondary">保存</Button>
+            </form>
+
+            <div className="space-y-2">
+              <p className="text-sm font-bold">クラスと登録受付</p>
+              <p className="muted text-xs">「登録受付中」のクラスだけが、共通QRの登録画面に表示されます。受付が終わったらオフにしてください。</p>
+              {allClasses.length === 0 && <p className="muted text-sm">まだクラスがありません。下から追加してください。</p>}
+              {allClasses.map((k: ClassRow) => (
+                <div key={k.id} className={`flex flex-wrap items-center gap-2 rounded-xl bg-black/[0.03] px-3 py-2 ${k.archived ? 'opacity-60' : ''}`}>
+                  <form action={renameClass.bind(null, course.id, k.id)} className="flex items-center gap-2">
+                    <input name="name" defaultValue={k.name} aria-label="クラス名" className="w-40" />
+                    <button className="text-sm text-brand-700 underline">名前を保存</button>
+                  </form>
+                  <span className="muted flex-1 text-sm">{people.filter((p) => p.classId === k.id && p.status !== 'suspended').length}人</span>
+                  {!k.archived && (
+                    <form action={setClassSignup.bind(null, course.id, k.id, !k.open_for_signup)}>
+                      <button className={`min-h-9 rounded-full px-3 text-xs font-bold ${k.open_for_signup ? 'bg-brand-600 text-white' : 'bg-black/10'}`}>
+                        {k.open_for_signup ? '✓ 登録受付中' : '登録受付オフ'}
+                      </button>
+                    </form>
+                  )}
+                  <form action={setClassArchived.bind(null, course.id, k.id, !k.archived)}>
+                    <button className="text-xs text-red-700 underline">{k.archived ? '元に戻す' : '非表示にする'}</button>
+                  </form>
+                </div>
+              ))}
+              {!course.archived && (
+                <form action={createClass.bind(null, course.id)} className="flex flex-wrap gap-2">
+                  <input name="name" placeholder="新しいクラス名（例：C組）" aria-label="新しいクラス名" required className="max-w-60" />
+                  <Button type="submit" variant="secondary">＋ クラス追加</Button>
+                </form>
+              )}
+            </div>
+
+            <form action={setCourseArchived.bind(null, course.id, !course.archived)} className="border-t line pt-3 text-right">
+              <button className="text-sm text-red-700 underline">
+                {course.archived ? '受講中に戻す' : 'この期を修了にする（登録受付も止まります。記録は残ります）'}
+              </button>
+            </form>
+          </section>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           {classes.length > 0 && (

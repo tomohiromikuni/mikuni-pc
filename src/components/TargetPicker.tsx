@@ -29,7 +29,7 @@ export function TargetPicker({ targets, name = 'target' }: { targets: { all: boo
           </div>
         </div>
       )}
-      {!targets.all && targets.classes.length === 0 && <p className="text-red-700">配信できる宛先がありません。先にコース・クラスを登録してください。</p>}
+      {!targets.all && targets.classes.length === 0 && <p className="text-red-700">配信できる宛先がありません。先に「訓練生・クラス」画面で期とクラスを作ってください。</p>}
       <p className="muted text-xs">「全訓練生」を選ぶと、ほかの選択は無視されます。</p>
     </Card>
   );
