@@ -78,8 +78,8 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
 
   const inView = all.filter((r) => (view === 'done' ? r.finished : !r.finished));
   const doneCount = all.filter((r) => r.finished).length;
-  const doneReply = all.filter((r) => r.finished && r.needsReply).length;
-  const currentReply = all.filter((r) => !r.finished && r.needsReply).length;
+  const doneUnread = all.filter((r) => r.finished && r.unread).length;
+  const currentUnread = all.filter((r) => !r.finished && r.unread).length;
   // 期生（コース）の一覧：新しい期が先
   const courses = [...new Map(inView.map((r) => [r.courseId, r.courseName])).entries()].sort(
     (a, b) => (courseStart.get(b[0]) ?? '').localeCompare(courseStart.get(a[0]) ?? '') || a[1].localeCompare(b[1], 'ja'),
@@ -88,10 +88,10 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
   const rows = inView
     .filter((r) => !sp.course || r.courseId === sp.course)
     .filter((r) => !q || r.name.includes(q) || r.kana.includes(q))
-    .filter((r) => sp.filter !== 'reply' || r.needsReply)
-    // 並び順：未読 → 要返信 → 最近やり取りした順 → まだやり取りがない人（フリガナ順）
-    .sort((a, b) => Number(b.unread) - Number(a.unread) || Number(b.needsReply) - Number(a.needsReply) || (b.lastAt ?? '').localeCompare(a.lastAt ?? '') || a.kana.localeCompare(b.kana, 'ja'));
-  const replyCount = inView.filter((r) => (!sp.course || r.courseId === sp.course) && r.needsReply).length;
+    .filter((r) => sp.filter !== 'unread' || r.unread)
+    // 並び順：未読 → 最近やり取りした順 → まだやり取りがない人（フリガナ順）
+    .sort((a, b) => Number(b.unread) - Number(a.unread) || (b.lastAt ?? '').localeCompare(a.lastAt ?? '') || a.kana.localeCompare(b.kana, 'ja'));
+  const unreadCount = inView.filter((r) => (!sp.course || r.courseId === sp.course) && r.unread).length;
 
   const groups = sp.course ? [[sp.course, rows]] as const : courses.map(([id]) => [id, rows.filter((r) => r.courseId === id)] as const).filter(([, list]) => list.length > 0);
   const href = (p: Record<string, string | undefined>) => {
@@ -109,10 +109,10 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
 
       <div role="tablist" aria-label="受講中と修了生" className="grid max-w-sm grid-cols-2 gap-1 rounded-xl bg-black/5 p-1">
         <Link role="tab" aria-selected={view === 'current'} href="/admin/chat" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'current' ? 'surface shadow-sm text-brand-700' : 'muted'}`}>
-          受講中{currentReply > 0 && <span className="ml-1 text-red-700">要返信 {currentReply}</span>}
+          受講中{currentUnread > 0 && <span className="ml-1 text-red-700">未読 {currentUnread}</span>}
         </Link>
         <Link role="tab" aria-selected={view === 'done'} href="/admin/chat?view=done" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'done' ? 'surface shadow-sm' : 'muted'}`}>
-          修了生 <span className="font-normal">{doneCount}</span>{doneReply > 0 && <span className="ml-1 text-red-700">要返信 {doneReply}</span>}
+          修了生 <span className="font-normal">{doneCount}</span>{doneUnread > 0 && <span className="ml-1 text-red-700">未読 {doneUnread}</span>}
         </Link>
       </div>
 
@@ -130,8 +130,8 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
           {sp.filter && <input type="hidden" name="filter" value={sp.filter} />}
           <input name="q" defaultValue={sp.q} placeholder="名前・フリガナで検索" aria-label="名前で検索" className="max-w-xs" />
         </form>
-        <Link href={href({ filter: sp.filter === 'reply' ? undefined : 'reply' })} className={chip(sp.filter === 'reply')}>
-          要返信だけ表示{replyCount > 0 && `（${replyCount}）`}
+        <Link href={href({ filter: sp.filter === 'unread' ? undefined : 'unread' })} className={chip(sp.filter === 'unread')}>
+          未読だけ表示{unreadCount > 0 && `（${unreadCount}）`}
         </Link>
       </div>
 
@@ -163,7 +163,7 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     {r.lastAt && <span className="muted text-xs">{friendlyDateTime(r.lastAt)}</span>}
                     <span className="flex items-center gap-1.5">
-                      {r.needsReply && <span className="text-xs font-bold text-red-700">要返信</span>}
+                      {r.unread && <span className="text-xs font-bold text-red-700">未読</span>}
                       {r.unread && <span aria-label="未読" className="h-2.5 w-2.5 rounded-full bg-red-500" />}
                     </span>
                   </span>

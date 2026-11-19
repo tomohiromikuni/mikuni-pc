@@ -36,12 +36,12 @@ const TABS = [
   { href: '/admin/more', label: 'その他', icon: 'M4 7h16M4 12h16M4 17h16' },
 ];
 
-/** スマホ用：下のタブ（チャットには返信が必要な件数を表示） */
+/** スマホ用：下のタブ（チャットには未読の件数を表示） */
 export function AdminBottomNav({ initialReply, canChat }: { initialReply: number; canChat: boolean }) {
   const path = usePathname();
   const [reply, setReply] = useState(initialReply);
 
-  // 画面を移動するたびに「返信が必要」の数を数え直す
+  // 画面を移動するたびに未読の数を数え直す
   useEffect(() => {
     if (!canChat) return;
     let cancelled = false;

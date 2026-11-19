@@ -19,7 +19,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       .select('id, title, priority, status, publish_at, published_at, announcement_recipients(read_at)')
       .order('created_at', { ascending: false })
       .limit(6),
-    // 返信が必要なチャット（最後に送ったのが訓練生）
+    // 未読のチャット（訓練生からのメッセージを、自分がまだ読んでいない）
     canChat
       ? supabase
           .from('chat_rooms')
@@ -47,7 +47,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     const mine = r.chat_reads?.find((x: { user_id: string }) => x.user_id === me.id)?.last_read_at;
     return !mine || mine < r.last_message_at;
   });
-  const latestReply = replyRooms[0];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const latestAtt = (att as any[] | null)?.[0];
   const attDone = latestAtt ? latestAtt.survey_recipients.filter((r: { responded_at: string | null }) => r.responded_at).length : 0;
@@ -70,16 +69,16 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
       {canChat && (
         <Link
-          href="/admin/chat?filter=reply"
-          className={`surface flex items-center gap-3 rounded-2xl border-2 p-3.5 ${replyRooms.length ? 'border-red-600' : 'line'}`}
+          href="/admin/chat?filter=unread"
+          className={`surface flex items-center gap-3 rounded-2xl border-2 p-3.5 ${unreadRooms.length ? 'border-red-600' : 'line'}`}
         >
-          <span className={`text-[32px] leading-none font-bold ${replyRooms.length ? 'text-red-700' : 'muted'}`}>{replyRooms.length}</span>
+          <span className={`text-[32px] leading-none font-bold ${unreadRooms.length ? 'text-red-700' : 'muted'}`}>{unreadRooms.length}</span>
           <span className="min-w-0 flex-1">
-            <span className="block font-bold">返信が必要なチャット{unreadRooms.length > 0 && <span className="ml-1 text-sm text-red-700">（未読 {unreadRooms.length}）</span>}</span>
+            <span className="block font-bold">未読のチャット</span>
             <span className="muted block truncate text-xs">
-              {latestReply
-                ? `最新：${latestReply.profiles?.full_name ?? ''}「${latestReply.chat_messages?.[0]?.body || '写真・ファイル'}」${friendlyDateTime(latestReply.last_message_at)}`
-                : 'いま返信が必要なチャットはありません'}
+              {unreadRooms[0]
+                ? `最新：${unreadRooms[0].profiles?.full_name ?? ''}「${unreadRooms[0].chat_messages?.[0]?.body || '写真・ファイル'}」${friendlyDateTime(unreadRooms[0].last_message_at)}`
+                : 'いま未読のチャットはありません'}
             </span>
           </span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
