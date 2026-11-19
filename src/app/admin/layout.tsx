@@ -1,5 +1,6 @@
 import { AdminBottomNav, AdminMain, AdminMobileHeader } from '@/components/AdminMobile';
 import { AdminNav } from '@/components/AdminNav';
+import { UserMenu } from '@/components/UserMenu';
 import { hasPerm, requireStaff } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
@@ -24,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminMobileHeader name={me.full_name} roleLabel={roleLabel} />
       <aside className="surface hidden border-r print:hidden md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col">
         {/* 左上：アプリのアイコン＋名前（デザイン案A） */}
-        <a href="/admin" className="flex items-center gap-2.5 px-4 pt-[18px] pb-4">
+        <a href="/admin" className="flex items-center gap-2.5 px-4 pt-[18px] pb-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-brand-600 text-white" aria-hidden>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v11H9l-5 4z" /></svg>
           </span>
@@ -33,17 +34,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="muted block text-[11px]">管理画面</span>
           </span>
         </a>
-        {/* ログイン中の人：名前の横に役割 */}
-        <div className="line mx-3 mb-3 flex items-center gap-2 rounded-xl border px-2.5 py-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700" aria-hidden>
-            {me.full_name.slice(0, 1)}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{me.full_name}</span>
-          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${me.role === 'admin' ? 'bg-brand-600 text-white' : 'bg-black/5'}`}>{roleLabel}</span>
-        </div>
-        <form action="/auth/signout" method="post" className="-mt-2 mb-2 px-4 text-right">
-          <button className="muted text-xs underline">ログアウト</button>
-        </form>
+        {/* ログイン中の人（押すとログアウト） */}
+        <UserMenu name={me.full_name} roleLabel={roleLabel} />
         <div className="min-h-0 flex-1 overflow-y-auto px-2.5">
           <AdminNav />
         </div>
