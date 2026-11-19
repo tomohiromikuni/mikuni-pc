@@ -3,6 +3,7 @@ import { AutoRefresh } from '@/components/AutoRefresh';
 import { Notice } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
 import { CHAT_STATUS_LABEL, type ChatStatus } from '@/lib/chat';
+import { hasFinished } from '@/lib/completion';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 
@@ -19,6 +20,7 @@ type Row = {
   lastBody: string | null;
   needsReply: boolean;
   unread: boolean;
+  finished: boolean;
 };
 
 const STATUS_COLOR: Record<ChatStatus, string> = {
@@ -28,14 +30,14 @@ const STATUS_COLOR: Record<ChatStatus, string> = {
 };
 
 /** 学校側のチャット一覧（LINEのトーク一覧のように、名簿の全員を表示） */
-export default async function ChatList({ searchParams }: { searchParams: Promise<{ course?: string; q?: string; filter?: string; error?: string }> }) {
+export default async function ChatList({ searchParams }: { searchParams: Promise<{ course?: string; q?: string; filter?: string; error?: string; view?: string }> }) {
   const me = await requirePerm('chat');
   const sp = await searchParams;
   const supabase = await createClient();
   const [{ data: trainees }, { data: rooms }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, full_name_kana, enrollments(ended_on, classes(name, course_id, courses(name, starts_on)))')
+      .select('id, full_name, full_name_kana, trainee_details(expected_completion_on), enrollments(ended_on, classes(name, course_id, courses(name, starts_on, ends_on, archived)))')
       .or('role.eq.trainee,also_trainee.eq.true')
       .neq('status', 'suspended')
       .order('full_name_kana'),
@@ -46,6 +48,9 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
       .limit(1, { referencedTable: 'chat_messages' }),
   ]);
 
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+  // 受講中と修了生を分ける
+  const view: 'current' | 'done' = sp.view === 'done' ? 'done' : 'current';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roomBy = new Map((rooms ?? []).map((r: any) => [r.trainee_id, r]));
   const courseStart = new Map<string, string>();
@@ -69,26 +74,34 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
       lastBody: r?.last_message_at ? r.chat_messages?.[0]?.body || '（写真・ファイル）' : null,
       needsReply,
       unread: needsReply && (!myRead || myRead < r.last_message_at),
+      finished: hasFinished(
+        { courseArchived: cur?.classes.courses.archived, courseEndsOn: cur?.classes.courses.ends_on, expectedCompletionOn: t.trainee_details?.expected_completion_on },
+        today,
+      ),
     };
   });
 
+  const inView = all.filter((r) => (view === 'done' ? r.finished : !r.finished));
+  const doneCount = all.filter((r) => r.finished).length;
+  const doneReply = all.filter((r) => r.finished && r.needsReply).length;
+  const currentReply = all.filter((r) => !r.finished && r.needsReply).length;
   // 期生（コース）の一覧：新しい期が先
-  const courses = [...new Map(all.map((r) => [r.courseId, r.courseName])).entries()].sort(
+  const courses = [...new Map(inView.map((r) => [r.courseId, r.courseName])).entries()].sort(
     (a, b) => (courseStart.get(b[0]) ?? '').localeCompare(courseStart.get(a[0]) ?? '') || a[1].localeCompare(b[1], 'ja'),
   );
   const q = (sp.q ?? '').trim();
-  const rows = all
+  const rows = inView
     .filter((r) => !sp.course || r.courseId === sp.course)
     .filter((r) => !q || r.name.includes(q) || r.kana.includes(q))
     .filter((r) => sp.filter !== 'reply' || r.needsReply)
     // 並び順：未読 → 要返信 → 最近やり取りした順 → まだやり取りがない人（フリガナ順）
     .sort((a, b) => Number(b.unread) - Number(a.unread) || Number(b.needsReply) - Number(a.needsReply) || (b.lastAt ?? '').localeCompare(a.lastAt ?? '') || a.kana.localeCompare(b.kana, 'ja'));
-  const replyCount = all.filter((r) => (!sp.course || r.courseId === sp.course) && r.needsReply).length;
+  const replyCount = inView.filter((r) => (!sp.course || r.courseId === sp.course) && r.needsReply).length;
 
   const groups = sp.course ? [[sp.course, rows]] as const : courses.map(([id]) => [id, rows.filter((r) => r.courseId === id)] as const).filter(([, list]) => list.length > 0);
   const href = (p: Record<string, string | undefined>) => {
     const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ course: sp.course, q: sp.q, filter: sp.filter, ...p })) if (v) u.set(k, v);
+    for (const [k, v] of Object.entries({ view: view === 'done' ? 'done' : undefined, course: sp.course, q: sp.q, filter: sp.filter, ...p })) if (v) u.set(k, v);
     return `/admin/chat${u.size ? '?' + u : ''}`;
   };
   const chip = (active: boolean) => `shrink-0 rounded-full border px-4 py-1.5 text-sm font-bold ${active ? 'border-brand-600 bg-brand-600 text-white' : 'surface'}`;
@@ -99,6 +112,15 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
       <h1 className="text-xl font-bold">チャット</h1>
       <Notice error={sp.error} />
 
+      <div role="tablist" aria-label="受講中と修了生" className="grid max-w-sm grid-cols-2 gap-1 rounded-xl bg-black/5 p-1">
+        <Link role="tab" aria-selected={view === 'current'} href="/admin/chat" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'current' ? 'surface shadow-sm text-brand-700' : 'muted'}`}>
+          受講中{currentReply > 0 && <span className="ml-1 text-red-700">要返信 {currentReply}</span>}
+        </Link>
+        <Link role="tab" aria-selected={view === 'done'} href="/admin/chat?view=done" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'done' ? 'surface shadow-sm' : 'muted'}`}>
+          修了生 <span className="font-normal">{doneCount}</span>{doneReply > 0 && <span className="ml-1 text-red-700">要返信 {doneReply}</span>}
+        </Link>
+      </div>
+
       <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="期生で絞り込み">
         <Link href={href({ course: undefined })} className={chip(!sp.course)}>すべての期</Link>
         {courses.map(([id, name]) => (
@@ -108,6 +130,7 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
 
       <div className="flex flex-wrap items-center gap-3">
         <form className="flex flex-1 gap-2" action="/admin/chat">
+          {view === 'done' && <input type="hidden" name="view" value="done" />}
           {sp.course && <input type="hidden" name="course" value={sp.course} />}
           {sp.filter && <input type="hidden" name="filter" value={sp.filter} />}
           <input name="q" defaultValue={sp.q} placeholder="名前・フリガナで検索" aria-label="名前で検索" className="max-w-xs" />
