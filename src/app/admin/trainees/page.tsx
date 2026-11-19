@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
-import { createClass, createCourse, renameClass, setClassArchived, setClassSignup, setCourseArchived, updateCourse } from '../courses/actions';
+import { createCourse, setCourseArchived, setCourseSignup, updateCourse } from '../courses/actions';
 
 type Search = Flash & { course?: string; class?: string; status?: string; q?: string; settings?: string; view?: string };
 
@@ -111,6 +111,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
   const allClasses: ClassRow[] = [...(course?.classes ?? [])].sort((a: ClassRow, b: ClassRow) => a.created_at.localeCompare(b.created_at));
   const classes = allClasses.filter((k) => !k.archived);
   const settingsOpen = isAdmin && !!course && !searching && sp.settings === '1';
+  const signupOpen = classes.some((k) => k.open_for_signup);
 
   const href = (p: Partial<Search>) => {
     const u = new URLSearchParams();
@@ -161,7 +162,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
                   <Field label="期の名前"><input name="name" required placeholder="例：2027年2月期" /></Field>
                   <Field label="開始日"><input name="starts_on" type="date" /></Field>
                   <Field label="終了日"><input name="ends_on" type="date" /></Field>
-                  <Field label="最初のクラス（任意）"><input name="first_class" placeholder="例：A組" /></Field>
+                  <label className="flex items-center gap-2 text-sm font-normal"><input type="checkbox" name="open_for_signup" defaultChecked /> すぐに登録を受け付ける</label>
                   <Button type="submit" className="w-full">作成する</Button>
                 </form>
               </details>
@@ -201,8 +202,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
             {course && !searching && (
               <p className="muted text-[13px]">
                 {formatDate(course.starts_on)} 〜 {formatDate(course.ends_on)} ・ {course.count}人
-                {classes.length > 0 &&
-                  `（${classes.map((k: { id: string; name: string }) => `${k.name} ${inCourse.filter((p) => p.classId === k.id && p.status !== 'suspended').length}`).join(' / ')}）`}
+                {signupOpen && !course.archived && <span className="ml-2 rounded-md bg-brand-100 px-1.5 py-px text-xs font-bold text-brand-700">登録受付中</span>}
               </p>
             )}
           </div>
@@ -235,36 +235,19 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
               <Button type="submit" variant="secondary">保存</Button>
             </form>
 
-            <div className="space-y-2">
-              <p className="text-sm font-bold">クラスと登録受付</p>
-              <p className="muted text-xs">「登録受付中」のクラスだけが、共通QRの登録画面に表示されます。受付が終わったらオフにしてください。</p>
-              {allClasses.length === 0 && <p className="muted text-sm">まだクラスがありません。下から追加してください。</p>}
-              {allClasses.map((k: ClassRow) => (
-                <div key={k.id} className={`flex flex-wrap items-center gap-2 rounded-xl bg-black/[0.03] px-3 py-2 ${k.archived ? 'opacity-60' : ''}`}>
-                  <form action={renameClass.bind(null, course.id, k.id)} className="flex items-center gap-2">
-                    <input name="name" defaultValue={k.name} aria-label="クラス名" className="w-40" />
-                    <button className="text-sm text-brand-700 underline">名前を保存</button>
-                  </form>
-                  <span className="muted flex-1 text-sm">{people.filter((p) => p.classId === k.id && p.status !== 'suspended').length}人</span>
-                  {!k.archived && (
-                    <form action={setClassSignup.bind(null, course.id, k.id, !k.open_for_signup)}>
-                      <button className={`min-h-9 rounded-full px-3 text-xs font-bold ${k.open_for_signup ? 'bg-brand-600 text-white' : 'bg-black/10'}`}>
-                        {k.open_for_signup ? '✓ 登録受付中' : '登録受付オフ'}
-                      </button>
-                    </form>
-                  )}
-                  <form action={setClassArchived.bind(null, course.id, k.id, !k.archived)}>
-                    <button className="text-xs text-red-700 underline">{k.archived ? '元に戻す' : '非表示にする'}</button>
-                  </form>
-                </div>
-              ))}
-              {!course.archived && (
-                <form action={createClass.bind(null, course.id)} className="flex flex-wrap gap-2">
-                  <input name="name" placeholder="新しいクラス名（例：C組）" aria-label="新しいクラス名" required className="max-w-60" />
-                  <Button type="submit" variant="secondary">＋ クラス追加</Button>
+            {!course.archived && (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl bg-black/[0.03] px-3 py-3">
+                <span className="flex-1 text-sm">
+                  <strong>共通QRからの登録</strong>
+                  <span className="muted block text-xs">受付中にすると、登録画面でこの期を選べるようになります。受付が終わったらオフにしてください。</span>
+                </span>
+                <form action={setCourseSignup.bind(null, course.id, !signupOpen)}>
+                  <button className={`min-h-10 rounded-full px-4 text-sm font-bold ${signupOpen ? 'bg-brand-600 text-white' : 'bg-black/10'}`}>
+                    {signupOpen ? '✓ 登録受付中' : '登録受付オフ'}
+                  </button>
                 </form>
-              )}
-            </div>
+              </div>
+            )}
 
             <form action={setCourseArchived.bind(null, course.id, !course.archived)} className="border-t line pt-3 text-right">
               <button className="text-sm text-red-700 underline">
@@ -275,14 +258,6 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          {classes.length > 0 && (
-            <>
-              <Link href={href({ class: undefined, status: sp.status })} className={chip(!sp.class)}>全クラス</Link>
-              {classes.map((k: { id: string; name: string }) => (
-                <Link key={k.id} href={href({ class: k.id, status: sp.status })} className={chip(sp.class === k.id)}>{k.name}</Link>
-              ))}
-            </>
-          )}
           {waiting > 0 && (
             <Link
               href={href({ class: sp.class, status: sp.status === 'invited' ? undefined : 'invited' })}
@@ -317,7 +292,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{p.name}</span>
                     <span className="muted block truncate text-xs">
-                      {[p.className || (selected === 'all' ? '未所属' : ''), formatPhone(p.phone)].filter(Boolean).join(' ・ ')}
+                      {[selected === 'all' ? allCourses.find((c) => c.id === p.courseId)?.name ?? '未所属' : '', formatPhone(p.phone)].filter(Boolean).join(' ・ ')}
                     </span>
                     <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] font-bold">
                       {p.finished ? (

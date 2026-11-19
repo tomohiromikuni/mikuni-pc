@@ -9,10 +9,15 @@ export default async function ChatPage() {
   const supabase = await createClient();
   const { data: roomId, error } = await supabase.rpc('ensure_my_chat_room');
   if (error || !roomId) {
+    const preview = me.role !== 'trainee' && !me.also_trainee;
     return (
       <div className="p-6">
         <Link href="/home" className="font-bold text-brand-700">‹ ホームへ</Link>
-        <p className="mt-4 text-red-700">チャットを開けませんでした。時間をおいてお試しください。</p>
+        <p className={`mt-4 ${preview ? '' : 'text-red-700'}`}>
+          {preview
+            ? '訓練生モード（表示の確認用）では、チャットは使えません。訓練生のチャット画面は、管理画面の「チャット」から確認できます。'
+            : 'チャットを開けませんでした。時間をおいてお試しください。'}
+        </p>
       </div>
     );
   }

@@ -4,29 +4,20 @@ import { Button, Field } from '@/components/ui';
 
 type Cls = { id: string; name: string; courseId: string; courseName: string };
 
-/** 共通QRの登録フォーム：期（コース）→ クラス → 名前・携帯番号・パスワード */
+/** 共通QRの登録フォーム：期 → 名前・携帯番号・パスワード */
 export function JoinForm({ classes, action, terms }: { classes: Cls[]; action: (f: FormData) => Promise<void>; terms: string }) {
-  const courses = useMemo(() => [...new Map(classes.map((c) => [c.courseId, c.courseName])).entries()], [classes]);
-  const [course, setCourse] = useState(courses.length === 1 ? courses[0][0] : '');
+  // クラスは使わない運用：期ごとに1つだけ（同じ期が複数あれば最初のもの）
+  const options = useMemo(() => [...new Map(classes.map((c) => [c.courseId, c])).values()], [classes]);
   const [busy, setBusy] = useState(false);
-  const inCourse = classes.filter((c) => c.courseId === course);
 
   return (
     <form action={async (f) => { setBusy(true); await action(f); setBusy(false); }} className="space-y-4">
       <Field label="何期生ですか？">
-        <select value={course} onChange={(e) => setCourse(e.target.value)} required>
-          <option value="">選んでください</option>
-          {courses.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        <select name="class_id" required defaultValue={options.length === 1 ? options[0].id : ''}>
+          {options.length !== 1 && <option value="">選んでください</option>}
+          {options.map((c) => <option key={c.id} value={c.id}>{c.courseName}</option>)}
         </select>
       </Field>
-      {course && (
-        <Field label="クラス">
-          <select name="class_id" required defaultValue={inCourse.length === 1 ? inCourse[0].id : ''} key={course}>
-            {inCourse.length !== 1 && <option value="">選んでください</option>}
-            {inCourse.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
-      )}
       <Field label="氏名"><input name="full_name" autoComplete="name" placeholder="山田 花子" required maxLength={100} /></Field>
       <Field label="フリガナ"><input name="full_name_kana" placeholder="ヤマダ ハナコ" required maxLength={100} /></Field>
       <Field label="携帯番号（ログインIDになります）"><input name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="090-1234-5678" required /></Field>

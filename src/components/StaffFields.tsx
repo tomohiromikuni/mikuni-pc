@@ -34,15 +34,12 @@ export function StaffFields({ classes, values = {}, isNew }: { classes: ClassOpt
       </fieldset>
       <fieldset>
         <legend className="mb-1 text-sm font-semibold">担当範囲（スタッフの場合）</legend>
-        <label className="mb-2 flex items-center gap-2 font-normal"><input type="checkbox" name="scope" value="all" defaultChecked={values.scopes ? has('all') : true} /> すべてのコース・クラス</label>
+        <label className="mb-2 flex items-center gap-2 font-normal"><input type="checkbox" name="scope" value="all" defaultChecked={values.scopes ? has('all') : true} /> すべての期</label>
         {courses.length > 0 && (
           <div className="space-y-2 pl-2">
-            <p className="muted text-xs">特定のコース・クラスだけを担当する場合は、上のチェックを外して選んでください。</p>
+            <p className="muted text-xs">特定の期だけを担当する場合は、上のチェックを外して選んでください。</p>
             <div className="flex flex-wrap gap-x-5 gap-y-1">
-              {courses.map(([id, name]) => <label key={id} className="flex items-center gap-2 font-normal"><input type="checkbox" name="scope" value={`course:${id}`} defaultChecked={has(`course:${id}`)} /> {name}（コース全体）</label>)}
-            </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
-              {classes.map((c) => <label key={c.id} className="flex items-center gap-2 font-normal"><input type="checkbox" name="scope" value={`class:${c.id}`} defaultChecked={has(`class:${c.id}`)} /> {c.label}</label>)}
+              {courses.map(([id, name]) => <label key={id} className="flex items-center gap-2 font-normal"><input type="checkbox" name="scope" value={`course:${id}`} defaultChecked={has(`course:${id}`)} /> {name}</label>)}
             </div>
           </div>
         )}

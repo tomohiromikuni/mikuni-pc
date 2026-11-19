@@ -55,7 +55,7 @@ export async function loadSurveyResults(surveyId: string) {
       traineeId: r.trainee_id,
       name: r.profiles?.full_name ?? '',
       kana: r.profiles?.full_name_kana ?? '',
-      classLabel: cur ? `${cur.classes.courses.name} / ${cur.classes.name}` : '未所属',
+      classLabel: cur ? cur.classes.courses.name : '未所属',
       respondedAt: r.responded_at,
       answers: ansByTrainee.get(r.trainee_id) ?? {},
     };

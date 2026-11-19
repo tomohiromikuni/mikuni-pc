@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="px-2 pb-2">
           <AdminNav isAdmin={me.role === 'admin'} />
           <a
-            href={me.also_trainee ? '/home' : '/admin/trainee-mode'}
+            href="/home"
             className="mt-2 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
           >
             訓練生モードに切り替え

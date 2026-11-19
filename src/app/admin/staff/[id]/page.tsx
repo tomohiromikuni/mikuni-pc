@@ -40,12 +40,12 @@ export default async function StaffDetail({ params, searchParams }: { params: Pr
       </Card>
       <Card>
         <h2 className="mb-2 font-bold">訓練生としても参加</h2>
-        <p className="mb-3 text-sm">オンにすると、1つのログインで「管理画面」と「訓練生モード」を切り替えて使えます。選んだクラスあてのお知らせ・出欠が届き、事務局チャットも使えます。</p>
+        <p className="mb-3 text-sm">オンにすると、1つのログインで「管理画面」と「訓練生モード」を切り替えて使えます。選んだ期あてのお知らせ・出欠が届き、事務局チャットも使えます。</p>
         <form action={setAlsoTrainee.bind(null, id, `/admin/staff/${id}`)} className="space-y-3">
           <label className="flex items-center gap-2 font-normal">
             <input type="checkbox" name="also_trainee" defaultChecked={s.also_trainee} /> 訓練生としても参加する
           </label>
-          <Field label="所属クラス">
+          <Field label="所属する期">
             <select name="class_id" defaultValue={(s.enrollments ?? []).find((e) => !e.ended_on)?.class_id ?? ''}>
               <option value="">未所属</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}

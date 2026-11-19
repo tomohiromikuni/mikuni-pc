@@ -19,9 +19,9 @@ export default async function JoinQrPage() {
       </div>
       <p className="text-sm print:hidden">
         このQRは全員共通です。教室に掲示したり、オリエンテーション資料に印刷してください。
-        いま登録を受け付けているクラス：
+        いま登録を受け付けている期：
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <strong>{(open ?? []).map((k: any) => `${k.courses?.name} / ${k.name}`).join('、') || 'なし（訓練生・クラス画面の「期の設定」で「登録受付中」にしてください）'}</strong>
+        <strong>{[...new Set((open ?? []).map((k: any) => k.courses?.name))].join('、') || 'なし（訓練生画面の「期の設定」で「登録受付中」にしてください）'}</strong>
       </p>
       <div className="mx-auto max-w-md rounded-2xl border-2 border-gray-300 bg-white p-8 text-center text-black">
         <p className="text-lg font-bold">{env.appName}</p>
@@ -30,7 +30,7 @@ export default async function JoinQrPage() {
         <img src={qr} alt="登録用QRコード" className="mx-auto my-4 w-64" />
         <ol className="mx-auto max-w-xs list-decimal pl-5 text-left text-sm leading-relaxed">
           <li>スマホのカメラでQRコードを読み取る</li>
-          <li>何期生・クラスを選び、名前と携帯番号を入力</li>
+          <li>何期生かを選び、名前と携帯番号を入力</li>
           <li>パスワードを決めて登録</li>
           <li>ホーム画面に追加すると便利です</li>
         </ol>

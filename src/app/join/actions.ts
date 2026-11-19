@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 const schema = z.object({
-  class_id: z.uuid('クラスを選んでください'),
+  class_id: z.uuid('何期生かを選んでください'),
   full_name: z.string().trim().min(1, '氏名を入力してください').max(100),
   full_name_kana: z.string().trim().min(1, 'フリガナを入力してください').max(100),
   phone: z.string().trim(),
@@ -46,7 +46,7 @@ export async function selfRegister(formData: FormData) {
   // 受付中のクラスか（画面を細工されても受付外には登録させない）
   const { data: cls } = await db.from('classes').select('id, org_id, open_for_signup, archived, courses(archived)').eq('id', v.class_id).maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (!cls || !cls.open_for_signup || cls.archived || (cls as any).courses?.archived) back('このクラスは現在登録を受け付けていません');
+  if (!cls || !cls.open_for_signup || cls.archived || (cls as any).courses?.archived) back('この期は現在登録を受け付けていません');
 
   const { data: dup } = await db.from('trainee_details').select('profile_id').eq('phone', phone!).maybeSingle();
   if (dup) {

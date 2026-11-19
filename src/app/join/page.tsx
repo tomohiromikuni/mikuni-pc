@@ -14,7 +14,7 @@ export default async function JoinPage({ searchParams }: { searchParams: Promise
     <AuthShell title="はじめての登録">
       <Notice error={error} />
       {classes.length === 0 ? (
-        <p>現在、登録を受け付けているクラスはありません。事務局にお問い合わせください。</p>
+        <p>現在、登録を受け付けている期はありません。事務局にお問い合わせください。</p>
       ) : (
         <JoinForm classes={classes} action={selfRegister} terms={TERMS_TEXT} />
       )}

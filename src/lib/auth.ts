@@ -31,11 +31,12 @@ export async function requireActive(): Promise<Profile> {
   return me;
 }
 
-/** 訓練生の画面：訓練生本人、または「訓練生としても参加」している運営メンバー */
+/**
+ * 訓練生の画面：訓練生本人、または運営メンバー（訓練生モード＝表示の確認用）。
+ * 運営メンバーは「訓練生としても参加」していなくても見られる（届いたお知らせ等がなければ空の表示）
+ */
 export async function requireTrainee(): Promise<Profile> {
-  const me = await requireActive();
-  if (me.role !== 'trainee' && !me.also_trainee) redirect('/admin/trainee-mode');
-  return me;
+  return requireActive();
 }
 
 export async function requireStaff(): Promise<Profile> {

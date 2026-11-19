@@ -7,7 +7,7 @@ const ITEMS = [
   { href: '/admin/announcements', label: 'お知らせ' },
   { href: '/admin/chat', label: 'チャット' },
   { href: '/admin/surveys', label: '出欠・アンケート' },
-  { href: '/admin/trainees', label: '訓練生・クラス' },
+  { href: '/admin/trainees', label: '訓練生' },
   { href: '/admin/staff', label: 'スタッフ', adminOnly: true },
   { href: '/admin/settings', label: '通知と設定' },
   { href: '/admin/setup', label: '設定チェック', adminOnly: true },

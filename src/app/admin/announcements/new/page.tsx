@@ -30,7 +30,7 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
           )}
           {targets.courses.length > 0 && (
             <div>
-              <p className="muted text-sm">コース単位</p>
+              <p className="muted text-sm">期ごと</p>
               <div className="flex flex-wrap gap-x-5 gap-y-1">
                 {targets.courses.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 font-normal"><input type="checkbox" name="target" value={`course:${c.id}`} /> {c.name}</label>
@@ -38,18 +38,9 @@ export default async function NewAnnouncementPage({ searchParams }: { searchPara
               </div>
             </div>
           )}
-          {targets.classes.length > 0 && (
-            <div>
-              <p className="muted text-sm">クラス単位</p>
-              <div className="flex flex-wrap gap-x-5 gap-y-1">
-                {targets.classes.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 font-normal"><input type="checkbox" name="target" value={`class:${c.id}`} /> {c.label}</label>
-                ))}
-              </div>
-            </div>
-          )}
-          {!targets.all && targets.classes.length === 0 && <p className="text-red-700">配信できる宛先がありません。先に「訓練生・クラス」画面で期とクラスを作ってください。</p>}
-          <p className="muted text-xs">「全訓練生」を選ぶと、ほかの選択は無視されます。複数のコース・クラスを選ぶと、重複なく1回だけ届きます。</p>
+          
+          {!targets.all && targets.courses.length === 0 && <p className="text-red-700">配信できる宛先がありません。先に「訓練生」画面で期を作ってください。</p>}
+          <p className="muted text-xs">「全訓練生」を選ぶと、ほかの選択は無視されます。複数の期を選ぶと、重複なく1回だけ届きます。</p>
         </Card>
         }
         timing={

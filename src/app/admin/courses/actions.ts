@@ -30,9 +30,9 @@ export async function createCourse(f: FormData) {
     .select('id')
     .single();
   if (error || !data) back(null, 'error', '作成できませんでした：' + error?.message);
-  const firstClass = str(f, 'first_class');
-  if (firstClass) await supabase.from('classes').insert({ org_id: me.org_id, course_id: data!.id, name: firstClass });
-  back(data!.id, 'message', `「${name}」を作りました。クラスと登録受付を設定してください`);
+  // クラスは使わないので、期の中に自動のクラスを1つだけ作る（所属や登録受付の記録に使う）
+  await supabase.from('classes').insert({ org_id: me.org_id, course_id: data!.id, name: '全体', open_for_signup: f.get('open_for_signup') === 'on' });
+  back(data!.id, 'message', `「${name}」を作りました`);
 }
 
 export async function updateCourse(id: string, f: FormData) {
@@ -86,4 +86,14 @@ export async function setClassSignup(courseId: string, id: string, open: boolean
   const supabase = await createClient();
   await supabase.from('classes').update({ open_for_signup: open }).eq('id', id);
   back(courseId, 'message', open ? '登録の受付を開始しました（共通QRの登録画面に表示されます）' : '登録の受付を終了しました');
+}
+
+/** 期ごとの「登録受付」（共通QRの登録画面に、この期を出すかどうか） */
+export async function setCourseSignup(courseId: string, open: boolean) {
+  const me = await requireAdmin();
+  const supabase = await createClient();
+  const { data: classes } = await supabase.from('classes').select('id').eq('course_id', courseId).eq('archived', false);
+  if (!classes?.length) await supabase.from('classes').insert({ org_id: me.org_id, course_id: courseId, name: '全体', open_for_signup: open });
+  else await supabase.from('classes').update({ open_for_signup: open }).eq('course_id', courseId).eq('archived', false);
+  back(courseId, 'message', open ? '登録の受付を開始しました（共通QRの登録画面にこの期が表示されます）' : '登録の受付を終了しました');
 }

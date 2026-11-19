@@ -25,8 +25,7 @@ export default async function MyPage() {
     ['フリガナ', me.full_name_kana || '—'],
     ['携帯番号（ログインID）', formatPhone(detail?.phone) || '—'],
     ...(detail?.email ? [['メールアドレス', detail.email] as [string, string]] : []),
-    ['コース', cls?.courses?.name ?? '—'],
-    ['クラス', cls?.name ?? '—'],
+    ['期', cls?.courses?.name ?? '—'],
     ['入校日', formatDate(detail?.enrolled_on)],
     ['修了予定日', formatDate(detail?.expected_completion_on)],
   ];

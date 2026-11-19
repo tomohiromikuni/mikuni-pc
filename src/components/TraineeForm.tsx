@@ -35,7 +35,7 @@ export function TraineeForm({
           <Field label="メールアドレス（任意）"><input name="email" type="email" defaultValue={values.email ?? ''} /></Field>
         </>
       ) : null}
-      <Field label="所属（コース / クラス）">
+      <Field label="所属する期">
         <select name="class_id" defaultValue={values.class_id ?? ''}>
           <option value="">未所属</option>
           {classes.map((c) => (

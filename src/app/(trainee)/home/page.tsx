@@ -45,7 +45,7 @@ export default async function HomePage() {
         <p className="mt-1 text-[22px] leading-snug font-bold">
           {me.full_name} さん、{greeting()}
         </p>
-        {cls && <p className="mt-1 text-[13px] opacity-90">{cls.courses?.name} {cls.name}</p>}
+        {cls && <p className="mt-1 text-[13px] opacity-90">{cls.courses?.name}</p>}
       </header>
 
       <div className="-mt-10 space-y-4 px-4">

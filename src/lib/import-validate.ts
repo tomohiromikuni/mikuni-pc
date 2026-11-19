@@ -1,7 +1,7 @@
 // Excel・CSV 一括登録：取り込み前のチェック（画面とテストの両方で使う純粋な関数）
 import { normalizePhone } from './phone.ts';
 
-export const IMPORT_COLUMNS = ['氏名', 'フリガナ', '電話番号', 'メールアドレス', 'コース', 'クラス', '入校日', '修了予定日'] as const;
+export const IMPORT_COLUMNS = ['氏名', 'フリガナ', '電話番号', 'メールアドレス', '期', '入校日', '修了予定日'] as const;
 
 export type ImportClass = { id: string; courseName: string; name: string };
 
@@ -60,8 +60,7 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
     氏名: '氏名', 名前: '氏名', フリガナ: 'フリガナ', ふりがな: 'フリガナ', カナ: 'フリガナ',
     メールアドレス: 'メールアドレス', メール: 'メールアドレス', email: 'メールアドレス', Email: 'メールアドレス',
     電話番号: '電話番号', 電話: '電話番号', 携帯番号: '電話番号', 携帯電話: '電話番号', 携帯: '電話番号',
-    コース: 'コース', コース名: 'コース', 所属コース: 'コース',
-    クラス: 'クラス', クラス名: 'クラス', 所属クラス: 'クラス',
+    期: '期', 期生: '期', コース: '期', コース名: '期', 所属コース: '期',
     入校日: '入校日', コース開始日: '入校日', 開始日: '入校日',
     修了予定日: '修了予定日', 修了日: '修了予定日', 終了日: '修了予定日',
   };
@@ -100,8 +99,7 @@ export function validateRows(
 
     const full_name = clean(get('氏名'));
     const email = clean(get('メールアドレス')).toLowerCase();
-    const course = clean(get('コース'));
-    const klass = clean(get('クラス'));
+    const course = clean(get('期'));
     const enrolled = parseDate(get('入校日') ?? '');
     const completion = parseDate(get('修了予定日') ?? '');
 
@@ -121,16 +119,15 @@ export function validateRows(
       seen.set(email, i + 1);
     }
 
+    // 期の名前で所属先を探す（クラスは使わない運用）
     let class_id = '';
     let class_label = '未所属';
-    if (course || klass) {
-      const candidates = classes.filter((c) => norm(c.name) === norm(klass) && (!course || norm(c.courseName) === norm(course)));
-      if (!klass) errors.push('クラスが空です（コースだけでは登録できません）');
-      else if (candidates.length === 0) errors.push(`「${course ? course + ' / ' : ''}${klass}」というクラスが見つかりません`);
-      else if (candidates.length > 1) errors.push(`「${klass}」が複数のコースにあります。コースも入力してください`);
+    if (course) {
+      const hit = classes.find((c) => norm(c.courseName) === norm(course));
+      if (!hit) errors.push(`「${course}」という期が見つかりません（「訓練生」画面の期の名前と同じにしてください）`);
       else {
-        class_id = candidates[0].id;
-        class_label = `${candidates[0].courseName} / ${candidates[0].name}`;
+        class_id = hit.id;
+        class_label = hit.courseName;
       }
     }
     if (enrolled === null) errors.push('入校日の形式が正しくありません（例：2026/4/1）');
@@ -154,7 +151,8 @@ export function validateRows(
 }
 
 /** テンプレート（Excel で文字化けしないよう BOM 付き UTF-8 の CSV） */
-export function templateCsv(sample?: ImportClass): string {
-  const ex = sample ?? { courseName: 'Webデザイン科', name: 'A組' };
-  return '﻿' + [IMPORT_COLUMNS.join(','), `山田 花子,ヤマダ ハナコ,hanako@example.com,090-1234-5678,${ex.courseName},${ex.name},2026/4/1,2026/9/30`].join('\r\n') + '\r\n';
+export function templateCsv(sample?: { courseName: string }): string {
+  const course = sample?.courseName ?? '2026年11月期';
+  const bom = String.fromCharCode(0xfeff);
+  return bom + [IMPORT_COLUMNS.join(','), `山田 花子,ヤマダ ハナコ,090-1234-5678,,${course},2026/4/1,2026/9/30`].join('\r\n') + '\r\n';
 }

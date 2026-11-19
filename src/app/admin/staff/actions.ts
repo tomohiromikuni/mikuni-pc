@@ -112,7 +112,7 @@ export async function setAlsoTrainee(id: string, back: string, f: FormData) {
   if (on && back === '/admin/trainee-mode') redirect('/home');
   redirect(
     `${back}?message=` +
-      encodeURIComponent(on ? '訓練生としても参加するようにしました。所属クラスあてのお知らせ・出欠が届きます' : '訓練生としての参加をやめました'),
+      encodeURIComponent(on ? '訓練生としても参加するようにしました。所属する期あてのお知らせ・出欠が届きます' : '訓練生としての参加をやめました'),
   );
 }
 

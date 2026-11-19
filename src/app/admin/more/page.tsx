@@ -25,7 +25,7 @@ export default async function MorePage() {
         ))}
       </ul>
       <a
-        href={me.also_trainee ? '/home' : '/admin/trainee-mode'}
+        href="/home"
         className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-dashed border-brand-500 font-bold text-brand-700"
       >
         訓練生モードに切り替え
