@@ -11,6 +11,16 @@ function urlBase64ToUint8Array(base64: string) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
+/** 「表示しない」を押した端末では、上の案内を出さない（設定画面からはいつでもオンにできる） */
+const HIDE_KEY = 'push-prompt-hidden';
+const isHidden = () => {
+  try {
+    return localStorage.getItem(HIDE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
 
@@ -19,8 +29,10 @@ export function PushSetup({ vapidKey, compact = false, audience = 'trainee' }: {
   const [state, setState] = useState<State>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
+    if (compact && isHidden()) return setHidden(true);
     (async () => {
       if (!('serviceWorker' in navigator)) return setState('unsupported');
       await navigator.serviceWorker.register('/sw.js');
@@ -66,8 +78,21 @@ export function PushSetup({ vapidKey, compact = false, audience = 'trainee' }: {
   }
 
   if (!vapidKey) return compact ? null : <p className="muted text-sm">通知機能は準備中です（管理者が設定するまでお待ちください）。</p>;
-  if (state === 'loading') return null;
+  if (hidden || state === 'loading') return null;
   if (compact && state !== 'off' && state !== 'ios-install') return null;
+
+  function hide() {
+    try {
+      localStorage.setItem(HIDE_KEY, '1');
+    } catch {}
+    setHidden(true);
+  }
+  const hideButton = compact && (
+    <button type="button" onClick={hide} className="min-h-11 px-3 text-sm font-bold text-brand-700 underline">
+      表示しない
+    </button>
+  );
+  const hideNote = compact && <p className="muted text-xs">「表示しない」にしても、{audience === 'staff' ? '「設定」' : '「マイページ」'}からいつでもオンにできます。</p>;
 
   const box = compact ? 'rounded-2xl border-2 border-brand-500 bg-brand-50 p-4 text-brand-700' : '';
   return (
@@ -82,7 +107,11 @@ export function PushSetup({ vapidKey, compact = false, audience = 'trainee' }: {
       {state === 'off' && (
         <>
           <p className="font-bold">🔔 {audience === 'trainee' ? '新しいお知らせやメッセージを通知で受け取れます' : '訓練生からのメッセージを通知で受け取れます'}</p>
-          <Button onClick={enable} disabled={busy}>{busy ? '設定中…' : '通知を受け取る'}</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={enable} disabled={busy}>{busy ? '設定中…' : '通知を受け取る'}</Button>
+            {hideButton}
+          </div>
+          {hideNote}
         </>
       )}
       {state === 'ios-install' && (
@@ -95,6 +124,7 @@ export function PushSetup({ vapidKey, compact = false, audience = 'trainee' }: {
             <li>この画面の「通知を受け取る」を押す</li>
           </ol>
           <p className="muted text-xs">iOS 16.4以上が必要です。</p>
+          {hideButton}
         </>
       )}
       {state === 'denied' && !compact && (
