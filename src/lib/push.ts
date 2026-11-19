@@ -1,6 +1,7 @@
 import 'server-only';
 import webpush from 'web-push';
 import { env } from '@/lib/env';
+import { hasFinished } from '@/lib/completion';
 import { digestText, isQuietTime, nextAllowedTime } from '@/lib/quiet-hours';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -28,22 +29,39 @@ export async function dispatchDue(now = new Date()) {
   const userIds = [...new Set(rows.map((r) => r.user_id))];
   const orgIds = [...new Set(rows.map((r) => r.org_id))];
   const [{ data: profiles }, { data: days }, { data: subs }] = await Promise.all([
-    db.from('profiles').select('id, role, status').in('id', userIds),
+    db
+      .from('profiles')
+      .select('id, role, status, also_trainee, trainee_details(expected_completion_on), enrollments(ended_on, classes(courses(archived, ends_on)))')
+      .in('id', userIds),
     db.from('calendar_days').select('org_id, day').in('org_id', orgIds),
     db.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth').in('user_id', userIds),
   ]);
   const offDays = new Map<string, Set<string>>();
   for (const d of days ?? []) (offDays.get(d.org_id) ?? offDays.set(d.org_id, new Set()).get(d.org_id)!).add(d.day);
 
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(now);
   let sent = 0;
   let deferred = 0;
   const byUser = new Map<string, Row[]>();
   for (const r of rows as Row[]) (byUser.get(r.user_id) ?? byUser.set(r.user_id, []).get(r.user_id)!).push(r);
 
   for (const [userId, items] of byUser) {
-    const prof = profiles?.find((p) => p.id === userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prof = profiles?.find((p) => p.id === userId) as any;
     const ids = items.map((i) => i.id);
-    if (!prof || prof.status !== 'active') {
+    // 受講が終わった訓練生には送らない（アプリ内のお知らせは残る）
+    const cur = prof?.enrollments?.find((e: { ended_on: string | null }) => !e.ended_on);
+    const finished =
+      prof?.role === 'trainee' &&
+      hasFinished(
+        {
+          courseArchived: cur?.classes?.courses?.archived,
+          courseEndsOn: cur?.classes?.courses?.ends_on,
+          expectedCompletionOn: prof?.trainee_details?.expected_completion_on,
+        },
+        today,
+      );
+    if (!prof || prof.status !== 'active' || finished) {
       await db.from('notification_queue').update({ sent_at: now.toISOString() }).in('id', ids); // 送らずに片付け
       continue;
     }

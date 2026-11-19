@@ -10,7 +10,6 @@ const ITEMS = [
   { href: '/admin/trainees', label: '訓練生・クラス' },
   { href: '/admin/staff', label: 'スタッフ', adminOnly: true },
   { href: '/admin/settings', label: '通知と設定' },
-  { href: '/admin/audit', label: '操作ログ', adminOnly: true },
   { href: '/admin/setup', label: '設定チェック', adminOnly: true },
 ];
 
