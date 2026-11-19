@@ -6,7 +6,7 @@ import { requireAdmin } from '@/lib/auth';
 import { PERMISSIONS } from '@/lib/permissions';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { parseTargetValues } from '@/lib/targets-parse';
+import { issueInvite } from '../trainees/actions';
 
 const schema = z.object({
   full_name: z.string().trim().min(1, '氏名を入力してください').max(100),
@@ -14,45 +14,40 @@ const schema = z.object({
   role: z.enum(['admin', 'staff']),
 });
 
-function readPerms(f: FormData) {
-  const valid = new Set(PERMISSIONS.map((p) => p.key));
-  return f.getAll('perm').map(String).filter((p) => valid.has(p as never));
-}
-
-function readScopes(f: FormData, staffId: string) {
-  return parseTargetValues(f.getAll('scope').map(String)).map((t) => ({ staff_id: staffId, course_id: t.course_id, class_id: t.class_id }));
-}
-
-async function replacePermsAndScopes(staffId: string, f: FormData) {
+/** メンバー（role = staff）は、削除など管理者だけの操作以外はすべてできる：すべての権限・すべての期を担当にする */
+async function grantMemberDefaults(staffId: string) {
   const supabase = await createClient();
-  await supabase.from('staff_permissions').delete().eq('staff_id', staffId);
   await supabase.from('staff_scopes').delete().eq('staff_id', staffId);
-  const perms = readPerms(f);
-  if (perms.length) await supabase.from('staff_permissions').insert(perms.map((permission) => ({ staff_id: staffId, permission })));
-  const scopes = readScopes(f, staffId);
-  if (scopes.length) await supabase.from('staff_scopes').insert(scopes);
+  await supabase.from('staff_scopes').insert({ staff_id: staffId });
+  await supabase.from('staff_permissions').upsert(PERMISSIONS.map((p) => ({ staff_id: staffId, permission: p.key })), { ignoreDuplicates: true });
 }
 
-export async function createStaff(f: FormData) {
+export type AddStaffResult = { error: string } | { name: string; email: string; url: string; qr: string; expiresAt: string } | null;
+
+/** スタッフを追加して、そのまま招待URLを発行する（受け取った人はURLを開いてパスワードを決めるだけ） */
+export async function addStaff(_prev: AddStaffResult, f: FormData): Promise<AddStaffResult> {
   const me = await requireAdmin();
   const v = schema.safeParse({ full_name: f.get('full_name'), email: f.get('email'), role: f.get('role') });
-  if (!v.success) redirect('/admin/staff/new?error=' + encodeURIComponent(v.error.issues[0].message));
+  if (!v.success) return { error: v.error.issues[0].message };
   const admin = createAdminClient();
   const { data: created, error } = await admin.auth.admin.createUser({ email: v.data.email, email_confirm: true });
   if (error || !created.user)
-    redirect('/admin/staff/new?error=' + encodeURIComponent(/already|registered|exists/i.test(error?.message ?? '') ? 'このメールアドレスはすでに登録されています' : '登録できませんでした：' + error?.message));
+    return { error: /already|registered|exists/i.test(error?.message ?? '') ? 'このメールアドレスはすでに登録されています' : '登録できませんでした：' + error?.message };
   const id = created.user.id;
   const supabase = await createClient();
   const { error: pe } = await supabase.from('profiles').insert({ id, org_id: me.org_id, role: v.data.role, status: 'invited', full_name: v.data.full_name, full_name_kana: '' });
   if (pe) {
     await admin.auth.admin.deleteUser(id);
-    redirect('/admin/staff/new?error=' + encodeURIComponent('登録できませんでした：' + pe.message));
+    return { error: '登録できませんでした：' + pe.message };
   }
-  if (v.data.role === 'staff') await replacePermsAndScopes(id, f);
+  if (v.data.role === 'staff') await grantMemberDefaults(id);
   revalidatePath('/admin/staff');
-  redirect(`/admin/staff/${id}?message=` + encodeURIComponent('登録しました。招待URLを発行して本人に渡してください'));
+  const inv = await issueInvite(id);
+  if (!inv || 'error' in inv) return { error: '登録しましたが、招待URLを発行できませんでした。一覧から本人を開いて発行してください' };
+  return { name: v.data.full_name, email: v.data.email, ...inv };
 }
 
+/** 名前と役割（管理者／メンバー）を変える */
 export async function updateStaff(id: string, f: FormData) {
   await requireAdmin();
   const back = (k: string, m: string) => redirect(`/admin/staff/${id}?${k}=${encodeURIComponent(m)}`);
@@ -61,8 +56,8 @@ export async function updateStaff(id: string, f: FormData) {
   if (!name) back('error', '氏名を入力してください');
   const supabase = await createClient();
   const { error } = await supabase.from('profiles').update({ full_name: name, role }).eq('id', id).neq('role', 'trainee');
-  if (error) back('error', error.message);
-  await replacePermsAndScopes(id, f);
+  if (error) back('error', /最後の管理者|last/i.test(error.message) ? '管理者が1人もいなくなるため変更できません' : error.message);
+  if (role === 'staff') await grantMemberDefaults(id);
   revalidatePath(`/admin/staff/${id}`);
   back('message', '保存しました');
 }
@@ -123,9 +118,10 @@ export async function promoteTrainee(id: string, f: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from('profiles').update({ role, also_trainee: true }).eq('id', id).eq('role', 'trainee');
   if (error) redirect(`/admin/trainees/${id}?error=` + encodeURIComponent(error.message));
+  if (role === 'staff') await grantMemberDefaults(id);
   revalidatePath('/admin/staff');
   redirect(
     `/admin/staff/${id}?message=` +
-      encodeURIComponent(`${role === 'admin' ? '管理者' : 'スタッフ'}にしました。今のログイン（携帯番号）のまま、管理画面と訓練生の画面を切り替えて使えます`),
+      encodeURIComponent(`${role === 'admin' ? '管理者' : 'メンバー'}にしました。今のログイン（携帯番号）のまま、管理画面と訓練生の画面を切り替えて使えます`),
   );
 }

@@ -1,14 +1,14 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, requireStaff } from '@/lib/auth';
 import { importHolidays } from '@/lib/holiday-import';
 import { createClient } from '@/lib/supabase/server';
 
 const back = (k: 'error' | 'message', m: string) => redirect(`/admin/settings?${k}=${encodeURIComponent(m)}`);
 
 export async function importHolidaysNow() {
-  const me = await requireAdmin();
+  const me = await requireStaff();
   try {
     const r = await importHolidays([me.org_id]);
     revalidatePath('/admin/settings');
@@ -19,7 +19,7 @@ export async function importHolidaysNow() {
 }
 
 export async function addCalendarDay(f: FormData) {
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const from = String(f.get('from') ?? '');
   const to = String(f.get('to') ?? '') || from;
   const kind = String(f.get('kind')) === 'holiday' ? 'holiday' : 'closure';
@@ -39,5 +39,13 @@ export async function deleteCalendarDay(day: string) {
   const me = await requireAdmin();
   const supabase = await createClient();
   await supabase.from('calendar_days').delete().eq('org_id', me.org_id).eq('day', day);
+  revalidatePath('/admin/settings');
+}
+
+/** 休校日を期間ごとまとめて削除する */
+export async function deleteCalendarRange(from: string, to: string) {
+  const me = await requireAdmin();
+  const supabase = await createClient();
+  await supabase.from('calendar_days').delete().eq('org_id', me.org_id).eq('kind', 'closure').gte('day', from).lte('day', to);
   revalidatePath('/admin/settings');
 }

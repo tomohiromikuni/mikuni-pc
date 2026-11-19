@@ -76,6 +76,9 @@ test('再通知：未読者だけ／担当範囲だけ。休校日は管理者�
   void class1;
 
   await as(U.admin, "insert into calendar_days (org_id, day, kind, name) values ($1, '2026-12-30', 'closure', '年末休校')", [orgA]);
-  await assert.rejects(as(U.staffAll, "insert into calendar_days (org_id, day, kind) values ($1, '2026-12-31', 'closure')", [orgA]), /row-level security/);
-  assert.equal((await as(U.x, 'select * from calendar_days')).length, 1);
+  // メンバーも休校日を追加できる。削除は管理者だけ。訓練生は追加できない
+  await as(U.staffAll, "insert into calendar_days (org_id, day, kind) values ($1, '2026-12-31', 'closure')", [orgA]);
+  assert.equal((await as(U.staffAll, "delete from calendar_days where day = '2026-12-31' returning day")).length, 0);
+  await assert.rejects(as(U.x, "insert into calendar_days (org_id, day, kind) values ($1, '2027-01-04', 'closure')", [orgA]), /row-level security/);
+  assert.equal((await as(U.x, 'select * from calendar_days')).length, 2);
 });

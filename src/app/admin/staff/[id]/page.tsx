@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { InvitePanel } from '@/components/InvitePanel';
-import { StaffFields } from '@/components/StaffFields';
 import { Button, Card, Field, Notice, PageTitle, type Flash } from '@/components/ui';
 import { requireAdmin } from '@/lib/auth';
 import { getClassOptions } from '@/lib/classes';
@@ -18,23 +17,32 @@ export default async function StaffDetail({ params, searchParams }: { params: Pr
   const supabase = await createClient();
   const { data: s } = await supabase
     .from('profiles')
-    .select('id, full_name, role, status, also_trainee, staff_permissions(permission), staff_scopes(course_id, class_id), enrollments(class_id, ended_on)')
+    .select('id, full_name, role, status, also_trainee, enrollments(class_id, ended_on)')
     .eq('id', id)
     .neq('role', 'trainee')
     .maybeSingle();
   if (!s) notFound();
   const [classes, { data: u }] = await Promise.all([getClassOptions(), createAdminClient().auth.admin.getUserById(id)]);
-  const scopes = (s.staff_scopes ?? []).map((x) => (!x.course_id && !x.class_id ? 'all' : x.course_id ? `course:${x.course_id}` : `class:${x.class_id}`));
   const status = s.status as AccountStatus;
 
   return (
     <div className="space-y-6">
-      <Link href="/admin/staff" className="text-sm font-bold text-brand-700">‹ スタッフ一覧</Link>
+      <Link href="/admin/staff" className="text-sm font-bold text-brand-700">‹ スタッフ</Link>
       <PageTitle>{s.full_name}<span className="ml-3 rounded-md bg-black/5 px-2 py-0.5 align-middle text-sm">{STATUS_LABEL[status]}</span></PageTitle>
       <Notice error={sp.error} message={sp.message} />
       <Card>
         <form action={updateStaff.bind(null, id)} className="space-y-5">
-          <StaffFields classes={classes} isNew={false} values={{ full_name: s.full_name, email: u.user?.email, role: s.role, perms: (s.staff_permissions ?? []).map((p) => p.permission), scopes }} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="名前"><input name="full_name" defaultValue={s.full_name} required /></Field>
+            <Field label="メールアドレス（ログインID）"><input value={u.user?.email ?? ''} readOnly className="opacity-70" /></Field>
+          </div>
+          <fieldset>
+            <legend className="mb-1 text-sm font-semibold">役割</legend>
+            <div className="flex flex-wrap gap-5">
+              <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="staff" defaultChecked={s.role !== 'admin'} /> メンバー（削除・スタッフの管理以外すべて）</label>
+              <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="admin" defaultChecked={s.role === 'admin'} /> 管理者（すべて）</label>
+            </div>
+          </fieldset>
           <Button type="submit">保存する</Button>
         </form>
       </Card>

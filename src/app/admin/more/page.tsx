@@ -31,7 +31,7 @@ export default async function MorePage() {
         <button className="surface min-h-12 w-full rounded-2xl border font-bold">ログアウト</button>
       </form>
       <p className="muted text-center text-xs">
-        {me.full_name}（{isAdmin ? '管理者' : 'スタッフ'}）・バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
+        {me.full_name}（{isAdmin ? '管理者' : 'メンバー'}）・バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
         {process.env.NEXT_PUBLIC_BUILD_ID && ` (${process.env.NEXT_PUBLIC_BUILD_ID})`}
       </p>
     </div>

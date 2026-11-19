@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       return !mine || mine < (r.last_message_at ?? '');
     }).length;
   }
-  const roleLabel = me.role === 'admin' ? '管理者' : 'スタッフ';
+  const roleLabel = me.role === 'admin' ? '管理者' : 'メンバー';
 
   return (
     <div className="min-h-dvh md:flex">
@@ -33,31 +33,31 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="muted block text-[11px]">管理画面</span>
           </span>
         </a>
+        {/* ログイン中の人：名前の横に役割 */}
+        <div className="line mx-3 mb-3 flex items-center gap-2 rounded-xl border px-2.5 py-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700" aria-hidden>
+            {me.full_name.slice(0, 1)}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{me.full_name}</span>
+          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${me.role === 'admin' ? 'bg-brand-600 text-white' : 'bg-black/5'}`}>{roleLabel}</span>
+        </div>
+        <form action="/auth/signout" method="post" className="-mt-2 mb-2 px-4 text-right">
+          <button className="muted text-xs underline">ログアウト</button>
+        </form>
         <div className="min-h-0 flex-1 overflow-y-auto px-2.5">
           <AdminNav />
         </div>
-        <div className="line space-y-2.5 border-t p-3">
+        <div className="line space-y-2 border-t p-3">
           <a
             href="/preview"
             className="flex items-center justify-center rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
           >
             訓練生の画面を見る
           </a>
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700" aria-hidden>
-              {me.full_name.slice(0, 1)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-bold">{me.full_name}</span>
-              <span className="muted block truncate text-[11px]" title="アプリのバージョン">
-                {roleLabel}・バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
-                {process.env.NEXT_PUBLIC_BUILD_ID && ` (${process.env.NEXT_PUBLIC_BUILD_ID})`}
-              </span>
-            </span>
-            <form action="/auth/signout" method="post">
-              <button className="muted min-h-8 text-xs underline">ログアウト</button>
-            </form>
-          </div>
+          <p className="muted px-1 text-xs" title="アプリのバージョン">
+            バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
+            {process.env.NEXT_PUBLIC_BUILD_ID && <span className="ml-1 opacity-70">({process.env.NEXT_PUBLIC_BUILD_ID})</span>}
+          </p>
         </div>
       </aside>
       <AdminMain>{children}</AdminMain>
