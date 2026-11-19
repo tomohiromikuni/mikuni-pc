@@ -161,9 +161,10 @@ export function ChatThread({
             onChange={(e) => setText(e.target.value)}
             rows={1}
             maxLength={4000}
-            placeholder={enterToSend ? 'メッセージを入力（Enterで送信・Shift+Enterで改行）' : 'メッセージを入力'}
-            aria-label="メッセージ"
-            className="max-h-36 min-h-10 flex-1 resize-none rounded-[20px] border-0 bg-[#eef2f1] px-4 py-2 leading-6"
+            placeholder="メッセージを入力"
+            title={enterToSend ? 'Enterで送信・Shift+Enterで改行' : undefined}
+            aria-label={enterToSend ? 'メッセージ（Enterで送信・Shift+Enterで改行）' : 'メッセージ'}
+            className="max-h-36 min-h-10 min-w-0 flex-1 resize-none overflow-y-auto rounded-[20px] border-0 bg-[#eef2f1] px-4 py-2 leading-6 placeholder:truncate"
             onKeyDown={onKeyDown}
             onCompositionStart={() => (composing.current = true)}
             onCompositionEnd={() => {
