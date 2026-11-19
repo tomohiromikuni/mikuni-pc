@@ -81,7 +81,7 @@ export function ChatThread({
   let lastDay = '';
 
   return (
-    <div className={`flex flex-col overflow-hidden bg-[#e9eef3] text-[#1f2a26] ${fullScreen ? 'h-[var(--chat-h,100dvh)]' : 'h-[calc(100dvh-170px)] min-h-[520px] rounded-2xl border line max-md:h-dvh max-md:min-h-0 max-md:rounded-none max-md:border-0'}`}>
+    <div className={`flex flex-col overflow-hidden bg-[#e9eef3] text-[#1f2a26] ${fullScreen ? 'h-[var(--chat-h,100dvh)]' : 'h-dvh md:h-full md:min-h-0 md:rounded-2xl md:border line'}`}>
       <header className="flex min-h-14 shrink-0 items-center gap-2 bg-brand-600 px-2 pt-[env(safe-area-inset-top)] text-white">{header}</header>
 
       <div ref={scroller} className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3" aria-live="polite">

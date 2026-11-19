@@ -4,15 +4,10 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 
-/** 「訓練生・クラス」画面の、その期の設定欄を開いた状態に戻る */
-function back(courseId: string | null, kind: 'error' | 'message', msg: string): never {
+/** 「訓練生」画面に戻ってお知らせを出す */
+function back(_courseId: string | null, kind: 'error' | 'message', msg: string): never {
   revalidatePath('/admin/trainees');
-  const q = new URLSearchParams({ [kind]: msg });
-  if (courseId) {
-    q.set('course', courseId);
-    q.set('settings', '1');
-  }
-  redirect(`/admin/trainees?${q}`);
+  redirect(`/admin/trainees?${new URLSearchParams({ [kind]: msg })}`);
 }
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();

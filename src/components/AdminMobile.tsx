@@ -23,8 +23,10 @@ export function AdminMobileHeader({ name, roleLabel }: { name: string; roleLabel
 export function AdminMain({ children }: { children: ReactNode }) {
   const path = usePathname();
   const room = isRoom(path);
+  // チャットは「左に一覧・右にトーク」なので横幅を広く使う
+  const wide = path === '/admin/chat' || path.startsWith('/admin/chat/');
   return (
-    <main className={`mx-auto w-full max-w-5xl flex-1 md:px-4 md:py-6 ${room ? 'max-md:p-0' : 'px-4 py-4 pb-28 md:pb-6'}`}>{children}</main>
+    <main className={`mx-auto w-full flex-1 md:px-4 md:py-6 ${wide ? 'max-w-7xl' : 'max-w-5xl'} ${room ? 'max-md:p-0' : 'px-4 py-4 pb-28 md:pb-6'}`}>{children}</main>
   );
 }
 

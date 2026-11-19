@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Button, Field, LinkButton, Notice, type Flash } from '@/components/ui';
+import { Dialog } from '@/components/Dialog';
+import { Button, Field, Notice, type Flash } from '@/components/ui';
 import { hasPerm, requireStaff } from '@/lib/auth';
 import { hasFinished } from '@/lib/completion';
 import { formatDate } from '@/lib/format';
@@ -8,29 +9,16 @@ import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { createCourse, setCourseArchived, setCourseSignup, updateCourse } from '../courses/actions';
 
-type Search = Flash & { course?: string; class?: string; status?: string; q?: string; settings?: string; view?: string };
+type Search = Flash & { q?: string; view?: string };
 
-type Person = {
-  id: string;
-  name: string;
-  kana: string;
-  status: AccountStatus;
-  phone: string;
-  courseId: string;
-  classId: string;
-  className: string;
-  push: boolean;
-  absent: number;
-  finished: boolean;
-};
+type Person = { id: string; name: string; kana: string; status: AccountStatus; phone: string; courseId: string; absent: number; finished: boolean };
 
-const STATUS_STYLE: Record<AccountStatus, string> = {
-  active: 'bg-brand-100 text-brand-700',
-  invited: 'bg-amber-50 text-amber-800',
-  suspended: 'bg-gray-200 text-gray-700',
-};
+type Course = { id: string; name: string; starts_on: string | null; ends_on: string | null; archived: boolean; finished: boolean; signup: boolean };
 
-/** 管理画面「訓練生」一覧（デザイン案B：期生ごとのカード表示） */
+/** 1つの期で最初に見せる人数（残りは「ほか○人を表示」） */
+const FIRST = 10;
+
+/** 管理画面「訓練生」（デザイン案A：受講中／修了生のタブ＋期の見出しつき一覧） */
 export default async function TraineesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const me = await requireStaff();
   const isAdmin = me.role === 'admin';
@@ -38,25 +26,34 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
 
-  const [canManage, { data: courses }, { data: trainees }, overview] = await Promise.all([
+  const [canManage, { data: courseRows }, { data: trainees }, overview] = await Promise.all([
     hasPerm('manage_trainees'),
-    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(id, name, archived, open_for_signup, created_at)').order('starts_on', { ascending: false, nullsFirst: false }),
+    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(archived, open_for_signup)').order('starts_on', { ascending: false, nullsFirst: false }),
     supabase
       .from('profiles')
-      .select('id, full_name, full_name_kana, status, trainee_details(phone, expected_completion_on), enrollments(ended_on, class_id, classes(name, course_id))')
+      .select('id, full_name, full_name_kana, status, trainee_details(phone, expected_completion_on), enrollments(ended_on, classes(course_id))')
       .or('role.eq.trainee,also_trainee.eq.true')
       .order('full_name_kana'),
-    // 通知・欠席の目印（データベースの追加設定前はなしで表示）
-    supabase.rpc('trainee_overview').then((r) => (r.error ? [] : (r.data as { trainee_id: string; has_push: boolean; absent_month: number }[]))),
+    // 欠席の目印（データベースの追加設定前はなしで表示）
+    supabase.rpc('trainee_overview').then((r) => (r.error ? [] : (r.data as { trainee_id: string; absent_month: number }[]))),
   ]);
   const ov = new Map(overview.map((o) => [o.trainee_id, o]));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const courseById = new Map(((courses ?? []) as any[]).map((c) => [c.id, c]));
+  const courses: Course[] = ((courseRows ?? []) as any[]).map((c) => ({
+    id: c.id,
+    name: c.name,
+    starts_on: c.starts_on,
+    ends_on: c.ends_on,
+    archived: c.archived,
+    finished: c.archived || (!!c.ends_on && c.ends_on < today),
+    signup: (c.classes ?? []).some((k: { archived: boolean; open_for_signup: boolean }) => !k.archived && k.open_for_signup),
+  }));
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const people: Person[] = ((trainees ?? []) as any[]).map((t) => {
     const cur = (t.enrollments ?? []).find((e: { ended_on: string | null }) => !e.ended_on);
-    const o = ov.get(t.id);
     const c = courseById.get(cur?.classes?.course_id);
     return {
       id: t.id,
@@ -65,268 +62,216 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
       status: t.status,
       phone: t.trainee_details?.phone ?? '',
       courseId: cur?.classes?.course_id ?? '',
-      classId: cur?.class_id ?? '',
-      className: cur?.classes?.name ?? '',
-      push: !!o?.has_push,
-      absent: o?.absent_month ?? 0,
+      absent: ov.get(t.id)?.absent_month ?? 0,
       // 受講が終わった人（期を修了にした・期の終了日や本人の修了予定日を過ぎた）
       finished: hasFinished({ courseArchived: c?.archived, courseEndsOn: c?.ends_on, expectedCompletionOn: t.trainee_details?.expected_completion_on }, today),
     };
   });
 
-  // 期生の一覧：受講中（新しい順）と修了した期に分ける
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allCourses = ((courses ?? []) as any[]).map((c) => ({
-    ...c,
-    count: people.filter((p) => p.courseId === c.id && p.status !== 'suspended').length,
-    finished: c.archived || (c.ends_on && c.ends_on < today),
-  }));
-  const current = allCourses.filter((c) => !c.finished);
-  const finished = allCourses.filter((c) => c.finished);
-  const unassigned = people.filter((p) => !p.courseId && p.status !== 'suspended' && !p.finished).length;
-  // 「受講中」と「修了生」の切り替え
   const view: 'current' | 'done' = sp.view === 'done' ? 'done' : 'current';
+  const q = (sp.q ?? '').trim();
+  const qDigits = q.replace(/\D/g, '');
+  const inView = people.filter((p) => (view === 'done' ? p.finished : !p.finished));
   const activeCount = people.filter((p) => !p.finished && p.status !== 'suspended').length;
   const doneCount = people.filter((p) => p.finished).length;
 
-  const q = (sp.q ?? '').trim();
-  const qDigits = q.replace(/\D/g, '');
-  const searching = q.length > 0;
-  // 選んでいる期：指定がなければ受講中の一番新しい期
-  const selected = searching ? 'all' : sp.course ?? (view === 'current' ? current[0]?.id : undefined) ?? 'all';
-  const course = allCourses.find((c) => c.id === selected);
+  // 期ごとのまとまり（受講中の期は新しい順。人がいない受講中の期も見出しは出す）
+  const groups = [
+    ...courses
+      .filter((c) => (view === 'done' ? inView.some((p) => p.courseId === c.id) : !c.finished || inView.some((p) => p.courseId === c.id)))
+      .map((c) => ({ course: c as Course | null, members: inView.filter((p) => p.courseId === c.id) })),
+    { course: null, members: inView.filter((p) => !p.courseId || !courseById.has(p.courseId)) },
+  ].filter((g) => g.course || g.members.length > 0);
 
-  const inCourse = people
-    .filter((p) => (selected === 'all' ? true : selected === 'none' ? !p.courseId : p.courseId === selected))
-    // 検索中以外は、受講中の画面に修了した人を出さない（修了生の画面はその逆）
-    .filter((p) => searching || (view === 'done' ? p.finished : !p.finished));
-  const hiddenFinished = view === 'current' && !searching ? people.filter((p) => p.finished && (selected === 'all' || p.courseId === selected)).length : 0;
-  const shown = inCourse
-    .filter((p) => !searching || p.name.includes(q) || p.kana.includes(q) || (qDigits.length >= 3 && p.phone.includes(qDigits)))
-    .filter((p) => !sp.class || p.classId === sp.class)
-    .filter((p) => (sp.status ? p.status === sp.status : p.status !== 'suspended'));
-  const waiting = inCourse.filter((p) => p.status === 'invited').length;
-  const suspended = inCourse.filter((p) => p.status === 'suspended').length;
-  type ClassRow = { id: string; name: string; archived: boolean; open_for_signup: boolean; created_at: string };
-  const allClasses: ClassRow[] = [...(course?.classes ?? [])].sort((a: ClassRow, b: ClassRow) => a.created_at.localeCompare(b.created_at));
-  const classes = allClasses.filter((k) => !k.archived);
-  const settingsOpen = isAdmin && !!course && !searching && sp.settings === '1';
-  const signupOpen = classes.some((k) => k.open_for_signup);
+  const searched = q
+    ? inView.filter((p) => p.name.includes(q) || p.kana.includes(q) || (qDigits.length >= 3 && p.phone.includes(qDigits)))
+    : null;
 
-  const href = (p: Partial<Search>) => {
-    const u = new URLSearchParams();
-    for (const [k, v] of Object.entries({ view: view === 'done' ? 'done' : undefined, course: selected === 'all' && !sp.course ? undefined : selected, ...p })) if (v) u.set(k, v);
-    return `/admin/trainees${u.size ? '?' + u : ''}`;
-  };
-  const chip = (active: boolean) => `shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-bold ${active ? 'border-[#1f2a26] bg-[#1f2a26] text-white' : 'surface'}`;
-  const side = (active: boolean) => `flex items-center justify-between rounded-xl px-3 py-2.5 font-bold ${active ? 'surface border-2 border-brand-600' : 'hover:bg-black/5'}`;
+  const tab = (active: boolean) => `rounded-[9px] px-2 py-2 text-center text-sm font-bold ${active ? 'surface shadow-sm text-brand-700' : 'muted'}`;
 
   return (
     <div className="space-y-4">
-      {/* 期生の一覧 */}
-      {/* 受講中／修了生と期の一覧：ふだんは折りたたみ（選んでいるものだけ表示） */}
-      <details className="group">
-        <summary className="surface flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-2xl border px-4 py-2 font-bold [&::-webkit-details-marker]:hidden">
-          <span className={`rounded-md px-2 py-0.5 text-xs ${view === 'done' ? 'bg-black/10' : 'bg-brand-100 text-brand-700'}`}>{view === 'done' ? '修了生' : '受講中'}</span>
-          <span className="min-w-0 flex-1 truncate">
-            {searching ? '検索結果' : selected === 'all' ? (view === 'done' ? '修了生の全員' : '受講中の全員') : selected === 'none' ? '未所属' : course?.name}
-          </span>
-          <span className="muted shrink-0 text-sm font-normal">期を切り替える</span>
-          <svg className="shrink-0 transition-transform group-open:rotate-180" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
-        </summary>
-      <nav aria-label="期生" className="surface mt-2 max-w-md space-y-1 rounded-2xl border p-3">
-        <div role="tablist" aria-label="受講中と修了生" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-black/5 p-1">
-          <Link role="tab" aria-selected={view === 'current'} href="/admin/trainees" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'current' ? 'surface shadow-sm text-brand-700' : 'muted'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="flex-1 text-xl font-bold">訓練生</h1>
+        {isAdmin && (
+          <Dialog label="期の設定" title="期の設定" buttonClassName="surface min-h-11 rounded-xl border px-4 font-bold hover:brightness-95">
+            <CourseSettings courses={courses} />
+          </Dialog>
+        )}
+        {canManage && (
+          <>
+            <Link href="/admin/join-qr" className="surface inline-flex min-h-11 items-center rounded-xl border px-4 font-bold hover:brightness-95">登録用QR</Link>
+            <details className="relative">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-xl bg-brand-600 px-4 font-bold text-white hover:brightness-95 [&::-webkit-details-marker]:hidden">＋ 登録</summary>
+              <div className="surface line absolute right-0 z-20 mt-1 w-60 rounded-xl border p-1.5 shadow-[0_8px_24px_rgba(31,42,38,0.14)]">
+                <Link href="/admin/trainees/new" className="flex min-h-11 items-center rounded-lg px-3 font-bold hover:bg-black/5">1人ずつ登録</Link>
+                <Link href="/admin/trainees/import" className="flex min-h-11 items-center rounded-lg px-3 font-bold hover:bg-black/5">Excel・CSVでまとめて登録</Link>
+              </div>
+            </details>
+          </>
+        )}
+      </div>
+      <Notice error={sp.error} message={sp.message} />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div role="tablist" aria-label="受講中と修了生" className="grid w-full grid-cols-2 gap-1 rounded-xl bg-black/[0.06] p-1 sm:w-72">
+          <Link role="tab" aria-selected={view === 'current'} href="/admin/trainees" className={tab(view === 'current')}>
             受講中 <span className="font-normal">{activeCount}</span>
           </Link>
-          <Link role="tab" aria-selected={view === 'done'} href="/admin/trainees?view=done" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'done' ? 'surface shadow-sm text-[#1f2a26]' : 'muted'}`}>
+          <Link role="tab" aria-selected={view === 'done'} href="/admin/trainees?view=done" className={tab(view === 'done')}>
             修了生 <span className="font-normal">{doneCount}</span>
           </Link>
         </div>
+        <form action="/admin/trainees" className="min-w-0 flex-1">
+          {view === 'done' && <input type="hidden" name="view" value="done" />}
+          <input name="q" defaultValue={q} placeholder="名前・フリガナ・携帯番号で検索" aria-label="訓練生を検索" className="w-full" />
+        </form>
+      </div>
 
-        {view === 'current' ? (
-          <>
-            <p className="muted px-2 pb-1 text-[13px] font-bold">受講中の期</p>
-            {current.map((c) => (
-              <Link key={c.id} href={`/admin/trainees?course=${c.id}`} className={side(selected === c.id)}>
-                <span className="truncate">{c.name}</span>
-                <span className="muted ml-2 shrink-0 text-sm">{people.filter((p) => p.courseId === c.id && !p.finished && p.status !== 'suspended').length}</span>
-              </Link>
-            ))}
-            {unassigned > 0 && (
-              <Link href="/admin/trainees?course=none" className={`${side(selected === 'none')} text-amber-800`}>
-                <span>未所属</span>
-                <span className="text-sm">{unassigned}</span>
-              </Link>
-            )}
-            <Link href="/admin/trainees?course=all" className={side(selected === 'all')}>
-              <span>受講中の全員</span>
-              <span className="muted text-sm">{activeCount}</span>
-            </Link>
-            {isAdmin && (
-              <details className="pt-2">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center rounded-xl border-2 border-dashed border-[#b9c6c1] font-bold text-brand-700">
-                  ＋ 新しい期を作る
-                </summary>
-                <form action={createCourse} className="surface mt-2 space-y-3 rounded-xl border p-3">
-                  <Field label="期の名前"><input name="name" required placeholder="例：2027年2月期" /></Field>
-                  <Field label="開始日"><input name="starts_on" type="date" /></Field>
-                  <Field label="終了日"><input name="ends_on" type="date" /></Field>
-                  <label className="flex items-center gap-2 text-sm font-normal"><input type="checkbox" name="open_for_signup" defaultChecked /> すぐに登録を受け付ける</label>
-                  <Button type="submit" className="w-full">作成する</Button>
-                </form>
-              </details>
-            )}
-            {current.length === 0 && (
-              <p className="muted px-2 text-sm">
-                受講中の期がありません。{isAdmin ? '「＋ 新しい期を作る」から作成してください。' : '管理者に作成を依頼してください。'}
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="muted px-2 pb-1 text-[13px] font-bold">修了した期</p>
-            {finished.map((c) => (
-              <Link key={c.id} href={`/admin/trainees?view=done&course=${c.id}`} className={side(selected === c.id)}>
-                <span className="truncate">{c.name}</span>
-                <span className="muted ml-2 shrink-0 text-sm">{people.filter((p) => p.courseId === c.id && p.finished).length}</span>
-              </Link>
-            ))}
-            <Link href="/admin/trainees?view=done&course=all" className={side(selected === 'all')}>
-              <span>修了生の全員</span>
-              <span className="muted text-sm">{doneCount}</span>
-            </Link>
-            <p className="muted px-2 pt-2 text-xs">修了生にはスマホへの通知は送られません。</p>
-          </>
-        )}
-      </nav>
-      </details>
+      {searched ? (
+        <section className="space-y-2">
+          <p className="muted text-sm">
+            「{q}」の検索結果：{searched.length}人 <Link href={view === 'done' ? '/admin/trainees?view=done' : '/admin/trainees'} className="ml-2 font-bold text-brand-700 underline">検索をやめる</Link>
+          </p>
+          <PeopleList people={searched} courseName={(id) => courseById.get(id)?.name} />
+        </section>
+      ) : groups.length === 0 ? (
+        <p className="muted py-10 text-center">{view === 'done' ? '修了生はまだいません' : isAdmin ? '受講中の期がありません。「期の設定」から新しい期を作ってください。' : '受講中の訓練生はいません'}</p>
+      ) : view === 'current' ? (
+        groups.map((g) => (
+          <section key={g.course?.id ?? 'none'} className="surface overflow-hidden rounded-2xl border">
+            <GroupHeader course={g.course} count={g.members.filter((p) => p.status !== 'suspended').length} />
+            <PeopleList people={g.members} flat />
+          </section>
+        ))
+      ) : (
+        // 修了生：期ごとにたたんで並べる
+        groups.map((g) => (
+          <details key={g.course?.id ?? 'none'} className="surface group overflow-hidden rounded-2xl border">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+              <span className="font-bold">{g.course?.name ?? '期なし'}</span>
+              <span className="muted text-[13px]">
+                {g.members.length}人{g.course?.ends_on && `・${formatDate(g.course.ends_on)} 修了`}
+              </span>
+              <svg className="muted ml-auto transition-transform group-open:rotate-180" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+            </summary>
+            <PeopleList people={g.members} flat />
+          </details>
+        ))
+      )}
+      {view === 'done' && <p className="muted text-xs">修了生には、就職状況の確認などの依頼だけを通知します。</p>}
+    </div>
+  );
+}
 
-      {/* 選んだ期の訓練生 */}
-      <section className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-[22px] font-bold">
-              {searching ? `「${q}」の検索結果` : selected === 'all' ? (view === 'done' ? '修了生の全員' : '受講中の全員') : selected === 'none' ? '未所属' : course?.name}
-              {!searching && view === 'done' && <span className="ml-2 rounded-md bg-black/10 px-2 py-0.5 align-middle text-sm">修了生</span>}
-            </h1>
-            {course && !searching && (
-              <p className="muted text-[13px]">
-                {formatDate(course.starts_on)} 〜 {formatDate(course.ends_on)} ・ {course.count}人
-                {signupOpen && !course.archived && <span className="ml-2 rounded-md bg-brand-100 px-1.5 py-px text-xs font-bold text-brand-700">登録受付中</span>}
-              </p>
-            )}
-          </div>
-          {canManage && (
-            <div className="flex flex-wrap gap-2">
-              {isAdmin && course && !searching && (
-                <LinkButton
-                  href={settingsOpen ? `/admin/trainees?course=${course.id}` : `/admin/trainees?course=${course.id}&settings=1`}
-                  variant="secondary"
-                  aria-expanded={settingsOpen}
-                  className={settingsOpen ? 'border-2 border-brand-600 bg-brand-50 text-brand-700' : ''}
-                >
-                  期の設定 {settingsOpen ? '▲' : '▼'}
-                </LinkButton>
-              )}
-              <LinkButton href="/admin/join-qr" variant="secondary">登録用QR</LinkButton>
-              <LinkButton href="/admin/trainees/import" variant="secondary">Excel・CSVで一括登録</LinkButton>
-              <LinkButton href="/admin/trainees/new">＋ 登録</LinkButton>
-            </div>
+function GroupHeader({ course, count }: { course: Course | null; count: number }) {
+  return (
+    <div className="line flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b bg-black/[0.02] px-4 py-2.5">
+      <h2 className={`text-base font-bold ${course ? '' : 'text-amber-800'}`}>{course?.name ?? '期が決まっていない人'}</h2>
+      {course && (
+        <span className="muted text-[13px]">
+          {course.starts_on || course.ends_on ? `${formatDate(course.starts_on)}〜${formatDate(course.ends_on)}・` : ''}
+          {count}人
+        </span>
+      )}
+      {course?.signup && <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-bold text-brand-700">登録受付中</span>}
+    </div>
+  );
+}
+
+function PeopleList({ people, flat = false, courseName }: { people: Person[]; flat?: boolean; courseName?: (id: string) => string | undefined }) {
+  if (people.length === 0) return <p className="muted px-4 py-4 text-sm">まだ登録されている人はいません。</p>;
+  const row = (p: Person) => (
+    <li key={p.id}>
+      <Link href={`/admin/trainees/${p.id}`} className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-0.5 px-4 py-2.5 hover:bg-black/[0.03]">
+        <span className={`min-w-0 flex-1 truncate font-bold ${p.status === 'suspended' ? 'muted' : ''}`}>{p.name}</span>
+        {courseName && <span className="muted text-[13px]">{courseName(p.courseId) ?? '期なし'}</span>}
+        <span className="muted w-32 text-sm">{formatPhone(p.phone)}</span>
+        <span className="flex w-36 justify-end gap-1.5 text-[12px] font-bold">
+          {p.absent >= 3 && <span className="rounded-md bg-red-50 px-1.5 py-px text-red-800">今月 欠席{p.absent}</span>}
+          {p.status === 'invited' ? (
+            <span className="text-amber-800">まだ登録していない</span>
+          ) : p.status === 'suspended' ? (
+            <span className="muted">{STATUS_LABEL.suspended}</span>
+          ) : (
+            <span className="text-brand-700">利用中</span>
           )}
-        </div>
-        <Notice error={sp.error} message={sp.message} />
+        </span>
+      </Link>
+    </li>
+  );
+  const first = people.slice(0, FIRST);
+  const rest = people.slice(FIRST);
+  return (
+    <ul className={`line divide-y ${flat ? '' : 'surface overflow-hidden rounded-2xl border'}`}>
+      {first.map(row)}
+      {rest.length > 0 && (
+        <li>
+          <details>
+            <summary className="line cursor-pointer list-none border-t px-4 py-2.5 text-sm font-bold text-brand-700 [&::-webkit-details-marker]:hidden">ほか{rest.length}人を表示</summary>
+            <ul className="line divide-y border-t">{rest.map(row)}</ul>
+          </details>
+        </li>
+      )}
+    </ul>
+  );
+}
 
-        {settingsOpen && course && (
-          <section aria-label="期の設定" className="surface space-y-4 rounded-2xl border-2 border-brand-600 p-4">
-            <form action={updateCourse.bind(null, course.id)} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
-              <Field label="期の名前"><input name="name" defaultValue={course.name} required /></Field>
-              <Field label="開始日"><input name="starts_on" type="date" defaultValue={course.starts_on ?? ''} /></Field>
-              <Field label="終了日"><input name="ends_on" type="date" defaultValue={course.ends_on ?? ''} /></Field>
-              <Button type="submit" variant="secondary">保存</Button>
-            </form>
-
-            {!course.archived && (
-              <div className="flex flex-wrap items-center gap-3 rounded-xl bg-black/[0.03] px-3 py-3">
-                <span className="flex-1 text-sm">
-                  <strong>共通QRからの登録</strong>
-                  <span className="muted block text-xs">受付中にすると、登録画面でこの期を選べるようになります。受付が終わったらオフにしてください。</span>
-                </span>
-                <form action={setCourseSignup.bind(null, course.id, !signupOpen)}>
-                  <button className={`min-h-10 rounded-full px-4 text-sm font-bold ${signupOpen ? 'bg-brand-600 text-white' : 'bg-black/10'}`}>
-                    {signupOpen ? '✓ 登録受付中' : '登録受付オフ'}
-                  </button>
-                </form>
-              </div>
-            )}
-
-            <form action={setCourseArchived.bind(null, course.id, !course.archived)} className="border-t line pt-3 text-right">
-              <button className="text-sm text-red-700 underline">
-                {course.archived ? '受講中に戻す' : 'この期を修了にする（登録受付も止まります。記録は残ります）'}
+/** 「期の設定」ポップアップの中身：受講中の期の編集・登録受付・修了、新しい期を作る */
+function CourseSettings({ courses }: { courses: Course[] }) {
+  const current = courses.filter((c) => !c.finished);
+  const finished = courses.filter((c) => c.finished).slice(0, 5);
+  return (
+    <div className="space-y-5">
+      {current.length === 0 && <p className="muted text-sm">受講中の期はありません。</p>}
+      {current.map((c) => (
+        <section key={c.id} className="line space-y-3 rounded-xl border p-3">
+          <form action={updateCourse.bind(null, c.id)} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
+            <Field label="期の名前"><input name="name" defaultValue={c.name} required /></Field>
+            <Field label="開始日"><input name="starts_on" type="date" defaultValue={c.starts_on ?? ''} /></Field>
+            <Field label="終了日"><input name="ends_on" type="date" defaultValue={c.ends_on ?? ''} /></Field>
+            <Button type="submit" variant="secondary">保存</Button>
+          </form>
+          <div className="flex flex-wrap items-center gap-3">
+            <form action={setCourseSignup.bind(null, c.id, !c.signup)}>
+              <button className={`min-h-10 rounded-full px-4 text-sm font-bold ${c.signup ? 'bg-brand-600 text-white' : 'bg-black/10'}`}>
+                {c.signup ? '✓ 登録受付中' : '登録受付オフ'}
               </button>
             </form>
-          </section>
-        )}
+            <span className="muted flex-1 text-xs">受付中の期は、共通QRの登録画面で選べます。</span>
+            <form action={setCourseArchived.bind(null, c.id, true)}>
+              <button className="text-sm text-red-700 underline">この期を修了にする</button>
+            </form>
+          </div>
+        </section>
+      ))}
 
-        <div className="flex flex-wrap items-center gap-2">
-          {waiting > 0 && (
-            <Link
-              href={href({ class: sp.class, status: sp.status === 'invited' ? undefined : 'invited' })}
-              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-bold ${sp.status === 'invited' ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 bg-amber-50 text-amber-900'}`}
-            >
-              登録待ち {waiting}人
-            </Link>
-          )}
-          {suspended > 0 && (
-            <Link href={href({ class: sp.class, status: sp.status === 'suspended' ? undefined : 'suspended' })} className={chip(sp.status === 'suspended')}>
-              利用停止 {suspended}人
-            </Link>
-          )}
-          <form action="/admin/trainees" className="ml-auto w-full sm:w-64">
-            <input name="q" defaultValue={sp.q} placeholder="名前・フリガナ・携帯番号で検索" aria-label="訓練生を検索" />
-          </form>
+      <details className="line rounded-xl border">
+        <summary className="cursor-pointer list-none px-3 py-3 font-bold text-brand-700 [&::-webkit-details-marker]:hidden">＋ 新しい期を作る</summary>
+        <form action={createCourse} className="grid gap-3 px-3 pb-3 sm:grid-cols-[2fr_1fr_1fr] sm:items-end">
+          <Field label="期の名前"><input name="name" required placeholder="例：2027年4月期" /></Field>
+          <Field label="開始日"><input name="starts_on" type="date" /></Field>
+          <Field label="終了日"><input name="ends_on" type="date" /></Field>
+          <label className="flex items-center gap-2 text-sm font-normal sm:col-span-3"><input type="checkbox" name="open_for_signup" defaultChecked /> すぐに登録を受け付ける</label>
+          <Button type="submit" className="sm:col-span-3 sm:justify-self-start">作成する</Button>
+        </form>
+      </details>
+
+      {finished.length > 0 && (
+        <div className="space-y-1">
+          <p className="muted text-xs font-bold">最近修了した期</p>
+          {finished.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 text-sm">
+              <span className="flex-1">{c.name}</span>
+              {c.archived && (
+                <form action={setCourseArchived.bind(null, c.id, false)}>
+                  <button className="text-brand-700 underline">受講中に戻す</button>
+                </form>
+              )}
+            </div>
+          ))}
         </div>
-
-        {shown.length === 0 ? (
-          <p className="muted py-10 text-center">該当する訓練生はいません</p>
-        ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
-            {shown.map((p) => (
-              <li key={p.id}>
-                <Link href={`/admin/trainees/${p.id}`} className="surface flex h-full gap-3 rounded-2xl border p-3.5 hover:border-brand-500">
-                  <span
-                    aria-hidden
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-bold ${p.status === 'active' && !p.finished ? 'bg-brand-600 text-white' : 'bg-black/10 text-[#5d6b66]'}`}
-                  >
-                    {p.name.trim()[0] ?? '?'}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold">{p.name}</span>
-                    <span className="muted block truncate text-xs">
-                      {[selected === 'all' ? allCourses.find((c) => c.id === p.courseId)?.name ?? '未所属' : '', formatPhone(p.phone)].filter(Boolean).join(' ・ ')}
-                    </span>
-                    <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] font-bold">
-                      {p.finished ? (
-                        <span className="rounded-md bg-gray-200 px-1.5 py-px text-gray-700">修了</span>
-                      ) : (
-                        <span className={`rounded-md px-1.5 py-px ${STATUS_STYLE[p.status]}`}>{p.status === 'invited' ? '登録待ち' : STATUS_LABEL[p.status]}</span>
-                      )}
-                      {p.status === 'active' && !p.finished && p.push && <span className="rounded-md bg-black/5 px-1.5 py-px">通知オン</span>}
-                      {p.absent >= 3 && <span className="rounded-md bg-red-50 px-1.5 py-px text-red-800">今月 欠席{p.absent}</span>}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        {hiddenFinished > 0 && (
-          <p className="text-sm">
-            受講が終わった人（{hiddenFinished}人）は <Link href={`/admin/trainees?view=done${selected !== 'all' ? `&course=${selected}` : ''}`} className="font-bold text-brand-700 underline">修了生</Link> に表示しています。
-          </p>
-        )}
-        <p className="muted text-xs">表示されるのは、あなたの担当範囲の訓練生だけです。「今月 欠席」は出欠確認の回答から数えています（3回以上で表示）。</p>
-      </section>
+      )}
     </div>
   );
 }

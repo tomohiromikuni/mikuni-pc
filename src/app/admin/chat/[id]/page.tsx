@@ -7,10 +7,12 @@ import { loadThread } from '@/lib/chat';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { addChatNote } from '../actions';
+import { ChatListPane } from '../ChatListPane';
 
-export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ChatRoomPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ view?: string }> }) {
   const me = await requirePerm('chat');
   const { id } = await params;
+  const { view } = await searchParams;
   const supabase = await createClient();
   const { data: room } = await supabase
     .from('chat_rooms')
@@ -25,8 +27,34 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = room.profiles as any;
 
+  const memo = (
+        <Card>
+        <h2 className="mb-2 font-bold">スタッフ用メモ</h2>
+        <p className="muted mb-2 text-xs">訓練生には表示されません。引き継ぎなどに使ってください。</p>
+        <ul className="mb-3 space-y-2 text-sm">
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {(notes ?? []).map((n: any) => (
+            <li key={n.id} className="rounded-lg bg-amber-50 p-2 text-amber-950">
+              <p className="whitespace-pre-wrap">{n.body}</p>
+              <p className="mt-1 text-[11px] opacity-70">{n.profiles?.full_name}・{friendlyDateTime(n.created_at)}</p>
+            </li>
+          ))}
+        </ul>
+        <form action={addChatNote.bind(null, id)} className="space-y-2">
+          <textarea name="body" rows={2} maxLength={2000} aria-label="メモ" required />
+          <Button type="submit" variant="secondary" className="w-full">メモを追加</Button>
+        </form>
+      </Card>
+  );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <>
+    {/* PC：左に一覧・右にトーク（広い画面ではさらに右にメモ）。スマホ：トークだけの全画面 */}
+    <div className="md:grid md:h-[calc(100dvh-3rem)] md:grid-cols-[340px_minmax(0,1fr)] md:gap-4 2xl:grid-cols-[340px_minmax(0,1fr)_260px]">
+      <section aria-label="チャット一覧" className="surface hidden overflow-hidden rounded-2xl border md:block md:h-full">
+        <ChatListPane meId={me.id} view={view === 'done' ? 'done' : 'current'} q="" activeRoomId={id} />
+      </section>
+      <div className="min-h-0 md:h-full">
       <ChatThread
         roomId={id}
         orgId={room.org_id}
@@ -37,7 +65,7 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
         traineeName={t?.full_name ?? ''}
         header={
           <>
-            <Link href="/admin/chat" aria-label="チャット一覧に戻る" className="flex h-11 w-11 items-center justify-center text-white">
+            <Link href="/admin/chat" aria-label="チャット一覧に戻る" className="flex h-11 w-11 items-center justify-center text-white md:hidden">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
             </Link>
             <div className="min-w-0 flex-1">
@@ -49,25 +77,12 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
           </>
         }
       />
-      <aside className="space-y-3">
-        <Card>
-          <h2 className="mb-2 font-bold">スタッフ用メモ</h2>
-          <p className="muted mb-2 text-xs">訓練生には表示されません。引き継ぎなどに使ってください。</p>
-          <ul className="mb-3 space-y-2 text-sm">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(notes ?? []).map((n: any) => (
-              <li key={n.id} className="rounded-lg bg-amber-50 p-2 text-amber-950">
-                <p className="whitespace-pre-wrap">{n.body}</p>
-                <p className="mt-1 text-[11px] opacity-70">{n.profiles?.full_name}・{friendlyDateTime(n.created_at)}</p>
-              </li>
-            ))}
-          </ul>
-          <form action={addChatNote.bind(null, id)} className="space-y-2">
-            <textarea name="body" rows={2} maxLength={2000} aria-label="メモ" required />
-            <Button type="submit" variant="secondary" className="w-full">メモを追加</Button>
-          </form>
-        </Card>
+      </div>
+      <aside aria-label="スタッフ用メモ" className="hidden min-h-0 overflow-y-auto 2xl:block">
+        {memo}
       </aside>
     </div>
+    <div className="max-md:px-4 max-md:py-4 md:mt-4 md:max-w-md 2xl:hidden">{memo}</div>
+    </>
   );
 }
