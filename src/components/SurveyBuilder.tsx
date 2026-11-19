@@ -7,9 +7,17 @@ import { Button, Card, Field } from '@/components/ui';
 type Q = { kind: 'single' | 'multi' | 'text'; label: string; required: boolean; options: string[] };
 const KIND_LABEL = { single: '1つ選ぶ', multi: '複数選べる', text: '自由に記入' };
 
-export function SurveyBuilder({ kind, targetPicker, defaultDate }: { kind: 'attendance' | 'survey'; targetPicker: ReactNode; defaultDate: string }) {
+export function SurveyBuilder({ kind, targetPicker, defaultDate, preset }: { kind: 'attendance' | 'survey'; targetPicker: ReactNode; defaultDate: string; preset?: 'employment' }) {
   const router = useRouter();
-  const [qs, setQs] = useState<Q[]>([{ kind: 'single', label: '', required: true, options: ['', ''] }]);
+  const [qs, setQs] = useState<Q[]>(
+    preset === 'employment'
+      ? [
+          { kind: 'single', label: '現在の状況', required: true, options: ['就職した（内定を含む）', '就職活動中', 'その他（進学・休止など）'] },
+          { kind: 'text', label: '勤務先・職種（わかる範囲で）', required: false, options: [] },
+          { kind: 'text', label: '就職日（または予定日）', required: false, options: [] },
+        ]
+      : [{ kind: 'single', label: '', required: true, options: ['', ''] }],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(defaultDate);
@@ -51,7 +59,7 @@ export function SurveyBuilder({ kind, targetPicker, defaultDate }: { kind: 'atte
           <Field label="対象日"><input type="date" name="target_date" value={date} onChange={(e) => setDate(e.target.value)} required /></Field>
         )}
         <Field label="タイトル">
-          <input name="title" required maxLength={200} key={kind === 'attendance' ? autoTitle : 'survey'} defaultValue={kind === 'attendance' ? autoTitle : ''} />
+          <input name="title" required maxLength={200} key={kind === 'attendance' ? autoTitle : 'survey'} defaultValue={kind === 'attendance' ? autoTitle : preset === 'employment' ? '就職状況のご報告のお願い' : ''} />
         </Field>
         <Field label="説明（任意）"><textarea name="description" rows={3} /></Field>
         <Field label="回答期限（任意）" hint="期限を過ぎると自動で締め切ります">

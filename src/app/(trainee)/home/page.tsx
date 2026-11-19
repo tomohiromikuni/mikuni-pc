@@ -7,6 +7,8 @@ import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { listMyAnnouncements } from '@/lib/trainee-data';
 import { listMySurveys } from '@/lib/trainee-surveys';
+import { GraduateHome } from '@/components/GraduateHome';
+import { getMyStatus } from '@/lib/my-status';
 
 /** 時間帯のあいさつ（日本時間） */
 function greeting(now = new Date()) {
@@ -26,6 +28,11 @@ export default async function HomePage() {
     supabase.rpc('my_chat_unread'),
   ]);
   const todo = surveys.filter((x) => !x.responded_at && x.open);
+  const status = await getMyStatus();
+  if (status.graduate) {
+    // 修了生には、回答が必要なもの（就職状況の確認など）をいちばん上の1つだけ出す
+    return <GraduateHome name={me.full_name} status={status} report={todo[0] ? { id: todo[0].id, title: todo[0].title } : null} />;
+  }
   const unread = items.filter((a) => !a.read).length;
   const alerts = items.filter((a) => a.priority !== 'normal' && !a.read);
   const latest = items.slice(0, 5);

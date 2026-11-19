@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { TraineeNav } from '@/components/TraineeNav';
 
 /** 訓練生画面の枠（上の帯・下のタブ）。チャット画面だけは全画面にする */
-export function TraineeFrame({ appName, unread, chatUnread, todo, staffMode = false, children }: { appName: string; unread: number; chatUnread: number; todo: number; staffMode?: boolean; children: ReactNode }) {
+export function TraineeFrame({ appName, unread, chatUnread, todo, staffMode = false, graduate = false, children }: { appName: string; unread: number; chatUnread: number; todo: number; staffMode?: boolean; graduate?: boolean; children: ReactNode }) {
   const path = usePathname();
   const modeBar = staffMode && (
     <div className="sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#1f2a26] px-4 py-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-sm text-white">
@@ -14,6 +14,18 @@ export function TraineeFrame({ appName, unread, chatUnread, todo, staffMode = fa
   );
   // 訓練生モードの帯がある分だけ、全画面チャットの高さを縮める
   if (path === '/chat') return <div style={staffMode ? ({ '--chat-h': 'calc(100dvh - 2.75rem - env(safe-area-inset-top))' } as CSSProperties) : undefined}>{modeBar}{children}</div>;
+  // 修了生：タブなしの1画面（ホーム以外は「ホームへ戻る」だけ）
+  if (graduate) {
+    if (path === '/home') return <>{children}</>;
+    return (
+      <div className="min-h-dvh bg-[#f7f3ec]">
+        <div className="sticky top-0 z-10 bg-[#f7f3ec] px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2">
+          <a href="/home" className="text-sm font-bold text-brand-700">‹ ホームへ戻る</a>
+        </div>
+        <main className="mx-auto max-w-2xl px-4 pb-10">{children}</main>
+      </div>
+    );
+  }
   // ホームは独自の大きな見出しがあるので、上の帯は出さない
   const showBar = path !== '/home';
   return (

@@ -25,6 +25,7 @@ export default async function SurveysPage({ searchParams }: { searchParams: Prom
           <div className="flex flex-wrap gap-2">
             <LinkButton href="/admin/surveys/new?kind=attendance">＋ 出欠確認</LinkButton>
             <LinkButton href="/admin/surveys/new?kind=survey" variant="secondary">＋ アンケート</LinkButton>
+            <LinkButton href="/admin/surveys/new?kind=employment" variant="secondary">＋ 就職状況の確認</LinkButton>
           </div>
         )}
       >
