@@ -13,3 +13,13 @@ export function hasFinished(info: CompletionInfo, today: string): boolean {
   if (info.expectedCompletionOn && info.expectedCompletionOn < today) return true;
   return false;
 }
+
+/**
+ * 修了生にも送ってよい通知か：出欠・アンケート（就職状況の確認など）の依頼と、その再通知だけ。
+ * お知らせ・チャットの通知は送らない。
+ */
+export function allowedForGraduate(item: { kind: string; url: string }): boolean {
+  if (item.kind === 'survey') return true;
+  if (item.kind === 'reminder' && item.url.startsWith('/answers/')) return true;
+  return false;
+}

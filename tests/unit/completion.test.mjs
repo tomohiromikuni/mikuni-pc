@@ -15,3 +15,12 @@ test('受講が終わった人には通知しない', () => {
   assert.equal(hasFinished({ courseEndsOn: '2026-11-18' }, today), true);
   assert.equal(hasFinished({ expectedCompletionOn: '2026-10-31' }, today), true);
 });
+
+test('修了生には、出欠・アンケート（就職状況の確認など）の依頼と再通知だけ送る', async () => {
+  const { allowedForGraduate } = await import('../../src/lib/completion.ts');
+  assert.equal(allowedForGraduate({ kind: 'survey', url: '/answers/x' }), true);
+  assert.equal(allowedForGraduate({ kind: 'reminder', url: '/answers/x' }), true);
+  assert.equal(allowedForGraduate({ kind: 'reminder', url: '/announcements/x' }), false); // お知らせの再通知
+  assert.equal(allowedForGraduate({ kind: 'announcement', url: '/announcements/x' }), false);
+  assert.equal(allowedForGraduate({ kind: 'chat', url: '/chat' }), false);
+});

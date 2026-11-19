@@ -1,7 +1,7 @@
 import 'server-only';
 import webpush from 'web-push';
 import { env } from '@/lib/env';
-import { hasFinished } from '@/lib/completion';
+import { allowedForGraduate, hasFinished } from '@/lib/completion';
 import { digestText, isQuietTime, nextAllowedTime } from '@/lib/quiet-hours';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -61,15 +61,23 @@ export async function dispatchDue(now = new Date()) {
         },
         today,
       );
-    if (!prof || prof.status !== 'active' || finished) {
+    if (!prof || prof.status !== 'active') {
       await db.from('notification_queue').update({ sent_at: now.toISOString() }).in('id', ids); // 送らずに片付け
       continue;
     }
+    // 修了生：就職状況の確認などの依頼だけ送り、ほかは送らずに片付ける
+    let candidates = items;
+    if (finished) {
+      const skip = items.filter((i) => !allowedForGraduate(i));
+      if (skip.length) await db.from('notification_queue').update({ sent_at: now.toISOString() }).in('id', skip.map((i) => i.id));
+      candidates = items.filter(allowedForGraduate);
+      if (!candidates.length) continue;
+    }
     const off = offDays.get(items[0].org_id) ?? new Set<string>();
-    let toSend = items;
+    let toSend = candidates;
     if (prof.role === 'trainee' && isQuietTime(now, off)) {
-      const later = items.filter((i) => !i.ignore_quiet);
-      toSend = items.filter((i) => i.ignore_quiet);
+      const later = candidates.filter((i) => !i.ignore_quiet);
+      toSend = candidates.filter((i) => i.ignore_quiet);
       if (later.length) {
         await db.from('notification_queue').update({ send_after: nextAllowedTime(now, off).toISOString() }).in('id', later.map((i) => i.id));
         deferred += later.length;

@@ -41,7 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <Card className="space-y-3">
         <h2 className="font-bold">通知しない日（祝日・休校日）</h2>
-        <p className="text-sm">訓練生への通知は、平日20時〜翌7時・土日・下の日には送らず、次の平日の朝7時にまとめて1通送ります。受講が終わった人（期を修了にした・期の終了日や修了予定日を過ぎた）には送りません。</p>
+        <p className="text-sm">訓練生への通知は、平日20時〜翌7時・土日・下の日には送らず、次の平日の朝7時にまとめて1通送ります。受講が終わった人（期を修了にした・期の終了日や修了予定日を過ぎた）には、就職状況の確認などの依頼だけを送り、お知らせ・チャットの通知は送りません。</p>
         {isAdmin && (
           <>
             <form action={importHolidaysNow}>
