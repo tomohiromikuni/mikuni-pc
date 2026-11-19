@@ -122,9 +122,19 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
   const side = (active: boolean) => `flex items-center justify-between rounded-xl px-3 py-2.5 font-bold ${active ? 'surface border-2 border-brand-600' : 'hover:bg-black/5'}`;
 
   return (
-    <div className="flex flex-wrap gap-6">
+    <div className="space-y-4">
       {/* 期生の一覧 */}
-      <nav aria-label="期生" className="w-full shrink-0 space-y-1 md:w-56">
+      {/* 受講中／修了生と期の一覧：ふだんは折りたたみ（選んでいるものだけ表示） */}
+      <details className="group">
+        <summary className="surface flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-2xl border px-4 py-2 font-bold [&::-webkit-details-marker]:hidden">
+          <span className={`rounded-md px-2 py-0.5 text-xs ${view === 'done' ? 'bg-black/10' : 'bg-brand-100 text-brand-700'}`}>{view === 'done' ? '修了生' : '受講中'}</span>
+          <span className="min-w-0 flex-1 truncate">
+            {searching ? '検索結果' : selected === 'all' ? (view === 'done' ? '修了生の全員' : '受講中の全員') : selected === 'none' ? '未所属' : course?.name}
+          </span>
+          <span className="muted shrink-0 text-sm font-normal">期を切り替える</span>
+          <svg className="shrink-0 transition-transform group-open:rotate-180" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+        </summary>
+      <nav aria-label="期生" className="surface mt-2 max-w-md space-y-1 rounded-2xl border p-3">
         <div role="tablist" aria-label="受講中と修了生" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-black/5 p-1">
           <Link role="tab" aria-selected={view === 'current'} href="/admin/trainees" className={`rounded-lg px-2 py-2 text-center text-sm font-bold ${view === 'current' ? 'surface shadow-sm text-brand-700' : 'muted'}`}>
             受講中 <span className="font-normal">{activeCount}</span>
@@ -190,9 +200,10 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
           </>
         )}
       </nav>
+      </details>
 
       {/* 選んだ期の訓練生 */}
-      <section className="min-w-0 flex-[999_1_560px] space-y-4">
+      <section className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-[22px] font-bold">
