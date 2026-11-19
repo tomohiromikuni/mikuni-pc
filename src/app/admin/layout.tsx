@@ -35,7 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
         <div className="absolute inset-x-0 bottom-0 space-y-2 px-2 pb-3">
           <a
-            href="/home"
+            href="/preview"
             className="flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
           >
             訓練生の画面を見る

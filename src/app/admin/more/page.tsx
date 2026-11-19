@@ -22,7 +22,7 @@ export default async function MorePage() {
         ))}
       </ul>
       <a
-        href="/home"
+        href="/preview"
         className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-dashed border-brand-500 font-bold text-brand-700"
       >
         訓練生の画面を見る

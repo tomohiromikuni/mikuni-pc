@@ -1,11 +1,15 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { TraineeNav } from '@/components/TraineeNav';
 
 /** 訓練生画面の枠（上の帯・下のタブ）。チャット画面だけは全画面にする */
 export function TraineeFrame({ appName, unread, chatUnread, todo, staffMode = false, graduate = false, children }: { appName: string; unread: number; chatUnread: number; todo: number; staffMode?: boolean; graduate?: boolean; children: ReactNode }) {
   const path = usePathname();
+  // 確認画面（端末の枠）の中で表示しているときは、上の帯を出さない
+  const [framed, setFramed] = useState(false);
+  useEffect(() => setFramed(window.self !== window.top), []);
+  if (framed) staffMode = false;
   const modeBar = staffMode && (
     <div className="sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#1f2a26] px-4 py-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-sm text-white">
       <span className="font-bold">訓練生の画面を表示中</span>
