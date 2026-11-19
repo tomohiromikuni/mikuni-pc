@@ -1,17 +1,26 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { Button, Field } from '@/components/ui';
+import { Field } from '@/components/ui';
 
 type Cls = { id: string; name: string; courseId: string; courseName: string };
 
 /** 共通QRの登録フォーム：期 → 名前・携帯番号・パスワード */
-export function JoinForm({ classes, action, terms }: { classes: Cls[]; action: (f: FormData) => Promise<void>; terms: string }) {
+export function JoinForm({ classes, action, terms }: { classes: Cls[]; action: (f: FormData) => Promise<{ ok: true }>; terms: string }) {
   // クラスは使わない運用：期ごとに1つだけ（同じ期が複数あれば最初のもの）
   const options = useMemo(() => [...new Map(classes.map((c) => [c.courseId, c])).values()], [classes]);
   const [busy, setBusy] = useState(false);
 
   return (
-    <form action={async (f) => { setBusy(true); await action(f); setBusy(false); }} className="space-y-4">
+    <form
+      action={async (f) => {
+        setBusy(true);
+        const r = await action(f);
+        // 登録できたら、ログイン情報を確実に反映させるためページ全体を読み込み直して移動
+        if (r?.ok) window.location.assign('/home');
+        else setBusy(false);
+      }}
+      className="space-y-4"
+    >
       <Field label="何期生ですか？">
         <select name="class_id" required defaultValue={options.length === 1 ? options[0].id : ''}>
           {options.length !== 1 && <option value="">選んでください</option>}
@@ -32,7 +41,10 @@ export function JoinForm({ classes, action, terms }: { classes: Cls[]; action: (
         <div className="mt-2 max-h-60 overflow-y-auto whitespace-pre-wrap">{terms}</div>
       </details>
       <label className="flex items-center gap-2 font-normal"><input type="checkbox" name="agree" required /> 利用規約に同意します</label>
-      <Button type="submit" className="w-full" disabled={busy}>{busy ? '登録しています…' : '登録して始める'}</Button>
+      <button type="submit" disabled={busy} aria-busy={busy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-2 font-bold text-white disabled:cursor-wait disabled:opacity-80">
+        {busy && <span aria-hidden className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+        {busy ? '登録しています…' : '登録して始める'}
+      </button>
     </form>
   );
 }

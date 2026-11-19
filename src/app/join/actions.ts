@@ -30,7 +30,7 @@ export async function listOpenClasses() {
 }
 
 /** 共通QRからの自己登録：アカウントを作って、そのままログインする */
-export async function selfRegister(formData: FormData) {
+export async function selfRegister(formData: FormData): Promise<{ ok: true }> {
   const back = (msg: string) => redirect('/join?error=' + encodeURIComponent(msg));
   // ロボット対策（人には見えない欄に入力があれば無視）
   if (String(formData.get('website') ?? '')) back('登録できませんでした');
@@ -67,7 +67,7 @@ export async function selfRegister(formData: FormData) {
     await db.from('audit_logs').insert({ org_id: prof!.org_id, actor_id: prof!.id, action: 'trainee.self_register', target_type: 'profile', target_id: prof!.id, detail: { name: prof!.full_name, roster: true } });
     const supabase = await createClient();
     await supabase.auth.signInWithPassword({ email: loginEmail, password: v.password });
-    redirect('/home');
+    return { ok: true };
   }
 
   const loginEmail = phoneToLoginEmail(phone!);
@@ -98,5 +98,5 @@ export async function selfRegister(formData: FormData) {
 
   const supabase = await createClient();
   await supabase.auth.signInWithPassword({ email: loginEmail, password: v.password });
-  redirect('/home');
+  return { ok: true };
 }

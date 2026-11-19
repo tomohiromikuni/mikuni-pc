@@ -1,5 +1,6 @@
 import { AuthShell } from '@/components/AuthShell';
-import { Button, Field, LinkButton, Notice, type Flash } from '@/components/ui';
+import { InviteForm } from '@/components/InviteForm';
+import { LinkButton, Notice, type Flash } from '@/components/ui';
 import { findInvitation } from '@/lib/invitation-lookup';
 import { formatPhone, isPhoneLoginEmail } from '@/lib/phone';
 import { acceptInvitation } from './actions';
@@ -33,18 +34,11 @@ export default async function InvitePage({
         ログインに使うパスワードを決めてください（以前のパスワードは使えなくなります）。
       </p>
       <Notice error={error} />
-      <form action={acceptInvitation.bind(null, token)} className="space-y-4">
-        <Field label={isPhoneLoginEmail(found.email) ? '携帯番号（ログインID）' : 'メールアドレス（ログインID）'}>
-          <input value={isPhoneLoginEmail(found.email) ? formatPhone(found.email.slice(1, found.email.indexOf('@'))) : found.email} readOnly className="opacity-70" />
-        </Field>
-        <Field label="パスワード" hint="8文字以上。ほかのサービスと同じものは避けてください">
-          <input name="password" type="password" autoComplete="new-password" minLength={8} required />
-        </Field>
-        <Field label="パスワード（確認のためもう一度）">
-          <input name="confirm" type="password" autoComplete="new-password" minLength={8} required />
-        </Field>
-        <Button type="submit" className="w-full">登録する</Button>
-      </form>
+      <InviteForm
+        action={acceptInvitation.bind(null, token)}
+        loginLabel={isPhoneLoginEmail(found.email) ? '携帯番号（ログインID）' : 'メールアドレス（ログインID）'}
+        loginValue={isPhoneLoginEmail(found.email) ? formatPhone(found.email.slice(1, found.email.indexOf('@'))) : found.email}
+      />
     </AuthShell>
   );
 }

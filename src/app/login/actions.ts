@@ -1,13 +1,15 @@
 'use server';
-import { redirect } from 'next/navigation';
 import { loginIdToEmail } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 
-export async function login(formData: FormData) {
+export type LoginResult = { error?: string; ok?: boolean } | null;
+
+/** ログイン（結果を返すだけ。画面の移動はブラウザ側で、ページ全体を読み込み直して行う） */
+export async function login(_prev: LoginResult, formData: FormData): Promise<LoginResult> {
   // 携帯番号 または メールアドレス
   const email = loginIdToEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
-  if (!email) redirect('/login?error=' + encodeURIComponent('携帯番号（例：090-1234-5678）またはメールアドレスを入力してください'));
+  if (!email) return { error: '携帯番号（例：090-1234-5678）またはメールアドレスを入力してください' };
   let message: string | null = null;
   try {
     const supabase = await createClient();
@@ -23,6 +25,6 @@ export async function login(formData: FormData) {
   } catch (e) {
     message = `サーバーに接続できませんでした（${e instanceof Error ? e.message : '不明なエラー'}）。設定を確認してください`;
   }
-  if (message) redirect('/login?error=' + encodeURIComponent(message));
-  redirect('/');
+  if (message) return { error: message };
+  return { ok: true };
 }

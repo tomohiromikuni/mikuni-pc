@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ComponentProps, ReactNode } from 'react';
+import { SubmitButton } from '@/components/SubmitButton';
 import type { Priority } from '@/lib/types';
 import { PRIORITY_LABEL } from '@/lib/types';
 
@@ -14,6 +15,8 @@ export function buttonClass(variant: keyof typeof btn = 'primary', extra = '') {
 }
 
 export function Button({ variant = 'primary', className = '', ...props }: ComponentProps<'button'> & { variant?: keyof typeof btn }) {
+  // 送信ボタンは、押している間「処理中…」を表示して二度押しを防ぐ
+  if (props.type === 'submit') return <SubmitButton className={buttonClass(variant, className)} {...props} />;
   return <button className={buttonClass(variant, className)} {...props} />;
 }
 

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { findInvitation } from '@/lib/invitation-lookup';
 
-export async function acceptInvitation(token: string, formData: FormData) {
+export async function acceptInvitation(token: string, formData: FormData): Promise<{ ok: true }> {
   const password = String(formData.get('password') ?? '');
   const confirm = String(formData.get('confirm') ?? '');
   const back = (msg: string) => redirect(`/invite/${token}?error=${encodeURIComponent(msg)}`);
@@ -31,5 +31,5 @@ export async function acceptInvitation(token: string, formData: FormData) {
 
   const supabase = await createClient();
   await supabase.auth.signInWithPassword({ email: found.email, password });
-  redirect('/terms');
+  return { ok: true };
 }

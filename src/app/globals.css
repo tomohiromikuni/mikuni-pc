@@ -50,3 +50,11 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--color-brand-500); outline-offset: 1px; }
 input[type="checkbox"], input[type="radio"] { width: 1.25rem; height: 1.25rem; accent-color: var(--color-brand-600); }
 label { font-weight: 600; }
+
+/* 押した感：ボタンやリンクを押した瞬間に少し沈む */
+button, a, summary, [role="tab"] { -webkit-tap-highlight-color: transparent; transition: transform 0.08s ease, filter 0.08s ease, opacity 0.15s ease; }
+button:not(:disabled):active, a:active, summary:active { transform: scale(0.97); filter: brightness(0.92); }
+button:disabled { cursor: not-allowed; }
+
+/* 画面切り替え中の線 */
+@keyframes nav-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
