@@ -3,10 +3,10 @@ import { notFound } from 'next/navigation';
 import { ChatThread } from '@/components/ChatThread';
 import { Button, Card } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
-import { CHAT_STATUS_LABEL, loadThread } from '@/lib/chat';
+import { loadThread } from '@/lib/chat';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
-import { addChatNote, setChatStatus } from '../actions';
+import { addChatNote } from '../actions';
 
 export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requirePerm('chat');
@@ -46,12 +46,6 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
               </Link>
               <p className="truncate text-[11px] opacity-90">{t?.full_name_kana}</p>
             </div>
-            <form action={setChatStatus.bind(null, id)} className="flex shrink-0 items-center gap-1 pr-1">
-              <select name="status" defaultValue={room.status} aria-label="対応状態" className="w-auto py-1 text-sm">
-                {Object.entries(CHAT_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <button type="submit" className="rounded-lg bg-white/20 px-2 py-1.5 text-sm font-bold text-white hover:bg-white/30">変更</button>
-            </form>
           </>
         }
       />

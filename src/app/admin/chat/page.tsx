@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { Notice } from '@/components/ui';
 import { requirePerm } from '@/lib/auth';
-import { CHAT_STATUS_LABEL, type ChatStatus } from '@/lib/chat';
+import type { ChatStatus } from '@/lib/chat';
 import { hasFinished } from '@/lib/completion';
 import { friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
@@ -23,11 +23,6 @@ type Row = {
   finished: boolean;
 };
 
-const STATUS_COLOR: Record<ChatStatus, string> = {
-  open: 'bg-red-100 text-red-800',
-  in_progress: 'bg-amber-100 text-amber-900',
-  done: 'bg-gray-200 text-gray-700',
-};
 
 /** 学校側のチャット一覧（LINEのトーク一覧のように、名簿の全員を表示） */
 export default async function ChatList({ searchParams }: { searchParams: Promise<{ course?: string; q?: string; filter?: string; error?: string; view?: string }> }) {
@@ -169,9 +164,6 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
                     {r.lastAt && <span className="muted text-xs">{friendlyDateTime(r.lastAt)}</span>}
                     <span className="flex items-center gap-1.5">
                       {r.needsReply && <span className="text-xs font-bold text-red-700">要返信</span>}
-                      {r.status && r.status !== 'open' && (
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${STATUS_COLOR[r.status]}`}>{CHAT_STATUS_LABEL[r.status]}</span>
-                      )}
                       {r.unread && <span aria-label="未読" className="h-2.5 w-2.5 rounded-full bg-red-500" />}
                     </span>
                   </span>
