@@ -11,6 +11,7 @@ export type Profile = {
   full_name: string;
   full_name_kana: string;
   terms_agreed_at: string | null;
+  also_trainee: boolean;
 };
 
 export const PRIORITY_LABEL: Record<Priority, string> = {

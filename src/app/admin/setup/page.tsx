@@ -16,7 +16,7 @@ export default async function SetupPage() {
     const { error } = await db.from(table).select(column, { head: true, count: 'exact' }).limit(1);
     return !error;
   };
-  const [attachments, chat, surveys, push, audit, signup, bucket, holidays, stuck, overview] = await Promise.all([
+  const [attachments, chat, surveys, push, audit, signup, bucket, holidays, stuck, overview, dual] = await Promise.all([
     has('attachments'),
     has('chat_rooms'),
     has('surveys'),
@@ -32,6 +32,7 @@ export default async function SetupPage() {
       .lt('send_after', new Date(Date.now() - 10 * 60000).toISOString())
       .then((r) => (r.error ? -1 : r.count ?? 0)),
     db.rpc('trainee_overview').then((r) => !r.error || !/function|does not exist|find/i.test(r.error.message)),
+    has('profiles', 'also_trainee'),
   ]);
   const dbAll = attachments && chat && surveys && push && audit && signup;
   const SQL = 'Supabase の SQL Editor で supabase/setup/update-to-0.8.sql を全部貼り付けて Run';
@@ -43,6 +44,7 @@ export default async function SetupPage() {
     { label: 'データベース：通知（段階5）', ok: push, fix: SQL },
     { label: 'データベース：スタッフ・操作ログ（段階6）', ok: audit, fix: SQL },
     { label: 'データベース：共通QRからの登録', ok: signup, fix: SQL },
+    { label: 'データベース：運営メンバーの訓練生モード', ok: dual, fix: 'Supabase の SQL Editor で supabase/setup/update-to-0.15.sql を貼り付けて Run' },
     { label: 'データベース：訓練生一覧の目印（通知・欠席）', ok: overview, fix: 'Supabase の SQL Editor で supabase/setup/update-to-0.13.sql を貼り付けて Run' },
     { label: '通知の鍵（VAPID）', ok: !!env.vapidPublicKey() && !!process.env.VAPID_PRIVATE_KEY, fix: 'Vercel の Environment Variables に NEXT_PUBLIC_VAPID_PUBLIC_KEY と VAPID_PRIVATE_KEY を追加して Redeploy' },
     { label: '定期実行の合言葉（CRON_SECRET）', ok: (process.env.CRON_SECRET ?? '').length >= 16, fix: 'Vercel の Environment Variables に CRON_SECRET を追加して Redeploy' },

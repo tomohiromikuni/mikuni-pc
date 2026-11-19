@@ -36,7 +36,7 @@ export default async function ChatList({ searchParams }: { searchParams: Promise
     supabase
       .from('profiles')
       .select('id, full_name, full_name_kana, enrollments(ended_on, classes(name, course_id, courses(name, starts_on)))')
-      .eq('role', 'trainee')
+      .or('role.eq.trainee,also_trainee.eq.true')
       .neq('status', 'suspended')
       .order('full_name_kana'),
     supabase

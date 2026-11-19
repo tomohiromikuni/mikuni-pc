@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server';
 import { formatPhone } from '@/lib/phone';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { openChatWithTrainee } from '../../chat/actions';
+import { promoteTrainee } from '../../staff/actions';
 import { issueTempPassword, setTraineeSuspended, updateTrainee } from '../actions';
 
 export default async function TraineeDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Flash> }) {
@@ -19,7 +20,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   const { error, message } = await searchParams;
   const supabase = await createClient();
 
-  const { data: t } = await supabase.from('profiles').select('*').eq('id', id).eq('role', 'trainee').maybeSingle();
+  const { data: t } = await supabase.from('profiles').select('*').eq('id', id).or('role.eq.trainee,also_trainee.eq.true').maybeSingle();
   if (!t) notFound(); // 担当外の訓練生は「存在しない」扱い
 
   const [canChat, canManage, canPii, classes, { data: detail }, { data: enrollments }, { data: reads }, { data: surveyHist }, { data: myAnswers }] = await Promise.all([
@@ -154,7 +155,25 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
         </ul>
       </Card>
 
-      {me.role === 'admin' && (
+      {me.role === 'admin' && t.role === 'trainee' && status === 'active' && (
+        <Card>
+          <h2 className="mb-2 font-bold">運営メンバーにする</h2>
+          <p className="mb-3 text-sm">この人を管理者・スタッフにします。今のログイン（携帯番号）のまま、管理画面と訓練生モードを切り替えて使えます。訓練生としての所属・履歴もそのままです。</p>
+          <form action={promoteTrainee.bind(null, id)} className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="admin" defaultChecked /> 管理者</label>
+            <label className="flex items-center gap-2 font-normal"><input type="radio" name="role" value="staff" /> スタッフ（権限はあとで設定）</label>
+            <Button type="submit" variant="secondary">運営メンバーにする</Button>
+          </form>
+        </Card>
+      )}
+
+      {t.role !== 'trainee' && (
+        <Card>
+          <p className="text-sm">この人は運営メンバー（{t.role === 'admin' ? '管理者' : 'スタッフ'}）で、訓練生としても参加しています。権限の変更は <a href={`/admin/staff/${id}`} className="font-bold text-brand-700 underline">スタッフ画面</a> から行います。</p>
+        </Card>
+      )}
+
+      {me.role === 'admin' && t.role === 'trainee' && (
         <Card>
           <h2 className="mb-2 font-bold">アカウントの利用</h2>
           <form action={setTraineeSuspended.bind(null, id, status !== 'suspended')}>

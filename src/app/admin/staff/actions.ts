@@ -87,3 +87,45 @@ export async function resetStaffMfa(id: string) {
   await supabase.rpc('log_action', { p_action: 'staff.mfa_reset', p_target_type: 'profile', p_target_id: id });
   redirect(`/admin/staff/${id}?message=` + encodeURIComponent('2段階認証をリセットしました。次回ログイン時に再登録が必要です'));
 }
+
+const todayJst = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+
+/** 所属クラスを変える（今の所属を終了して新しい所属を追加。履歴が残る） */
+async function setEnrollment(profileId: string, orgId: string, classId: string) {
+  const supabase = await createClient();
+  const { data: cur } = await supabase.from('enrollments').select('id, class_id').eq('trainee_id', profileId).is('ended_on', null).maybeSingle();
+  if ((cur?.class_id ?? '') === classId) return;
+  if (cur) await supabase.from('enrollments').update({ ended_on: todayJst() }).eq('id', cur.id);
+  if (classId) await supabase.from('enrollments').insert({ org_id: orgId, trainee_id: profileId, class_id: classId, started_on: todayJst() });
+}
+
+/** 運営メンバーの「訓練生としても参加」とその所属クラス */
+export async function setAlsoTrainee(id: string, back: string, f: FormData) {
+  const me = await requireAdmin();
+  const on = f.get('also_trainee') === 'on';
+  const classId = String(f.get('class_id') ?? '');
+  const supabase = await createClient();
+  const { error } = await supabase.from('profiles').update({ also_trainee: on }).eq('id', id).neq('role', 'trainee');
+  if (error) redirect(`${back}?error=` + encodeURIComponent(error.message));
+  if (on) await setEnrollment(id, me.org_id, classId);
+  revalidatePath(back);
+  if (on && back === '/admin/trainee-mode') redirect('/home');
+  redirect(
+    `${back}?message=` +
+      encodeURIComponent(on ? '訓練生としても参加するようにしました。所属クラスあてのお知らせ・出欠が届きます' : '訓練生としての参加をやめました'),
+  );
+}
+
+/** 訓練生として登録済みの人を、運営メンバー（管理者・スタッフ）にする。訓練生としての参加・ログインはそのまま */
+export async function promoteTrainee(id: string, f: FormData) {
+  await requireAdmin();
+  const role = String(f.get('role')) === 'admin' ? 'admin' : 'staff';
+  const supabase = await createClient();
+  const { error } = await supabase.from('profiles').update({ role, also_trainee: true }).eq('id', id).eq('role', 'trainee');
+  if (error) redirect(`/admin/trainees/${id}?error=` + encodeURIComponent(error.message));
+  revalidatePath('/admin/staff');
+  redirect(
+    `/admin/staff/${id}?message=` +
+      encodeURIComponent(`${role === 'admin' ? '管理者' : 'スタッフ'}にしました。今のログイン（携帯番号）のまま、管理画面と訓練生モードを切り替えて使えます`),
+  );
+}

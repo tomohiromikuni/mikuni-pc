@@ -42,7 +42,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
     supabase
       .from('profiles')
       .select('id, full_name, full_name_kana, status, trainee_details(phone), enrollments(ended_on, class_id, classes(name, course_id))')
-      .eq('role', 'trainee')
+      .or('role.eq.trainee,also_trainee.eq.true')
       .order('full_name_kana'),
     // 通知・欠席の目印（データベースの追加設定前はなしで表示）
     supabase.rpc('trainee_overview').then((r) => (r.error ? [] : (r.data as { trainee_id: string; has_push: boolean; absent_month: number }[]))),

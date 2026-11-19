@@ -31,9 +31,10 @@ export async function requireActive(): Promise<Profile> {
   return me;
 }
 
+/** 訓練生の画面：訓練生本人、または「訓練生としても参加」している運営メンバー */
 export async function requireTrainee(): Promise<Profile> {
   const me = await requireActive();
-  if (me.role !== 'trainee') redirect('/admin');
+  if (me.role !== 'trainee' && !me.also_trainee) redirect('/admin/trainee-mode');
   return me;
 }
 

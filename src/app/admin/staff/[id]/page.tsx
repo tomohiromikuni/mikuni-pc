@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { InvitePanel } from '@/components/InvitePanel';
 import { StaffFields } from '@/components/StaffFields';
-import { Button, Card, Notice, PageTitle, type Flash } from '@/components/ui';
+import { Button, Card, Field, Notice, PageTitle, type Flash } from '@/components/ui';
 import { requireAdmin } from '@/lib/auth';
 import { getClassOptions } from '@/lib/classes';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { issueInvite } from '../../trainees/actions';
-import { resetStaffMfa, setStaffSuspended, updateStaff } from '../actions';
+import { resetStaffMfa, setAlsoTrainee, setStaffSuspended, updateStaff } from '../actions';
 
 export default async function StaffDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Flash> }) {
   const me = await requireAdmin();
@@ -18,7 +18,7 @@ export default async function StaffDetail({ params, searchParams }: { params: Pr
   const supabase = await createClient();
   const { data: s } = await supabase
     .from('profiles')
-    .select('id, full_name, role, status, staff_permissions(permission), staff_scopes(course_id, class_id)')
+    .select('id, full_name, role, status, also_trainee, staff_permissions(permission), staff_scopes(course_id, class_id), enrollments(class_id, ended_on)')
     .eq('id', id)
     .neq('role', 'trainee')
     .maybeSingle();
@@ -38,6 +38,23 @@ export default async function StaffDetail({ params, searchParams }: { params: Pr
           <Button type="submit">保存する</Button>
         </form>
       </Card>
+      <Card>
+        <h2 className="mb-2 font-bold">訓練生としても参加</h2>
+        <p className="mb-3 text-sm">オンにすると、1つのログインで「管理画面」と「訓練生モード」を切り替えて使えます。選んだクラスあてのお知らせ・出欠が届き、事務局チャットも使えます。</p>
+        <form action={setAlsoTrainee.bind(null, id, `/admin/staff/${id}`)} className="space-y-3">
+          <label className="flex items-center gap-2 font-normal">
+            <input type="checkbox" name="also_trainee" defaultChecked={s.also_trainee} /> 訓練生としても参加する
+          </label>
+          <Field label="所属クラス">
+            <select name="class_id" defaultValue={(s.enrollments ?? []).find((e) => !e.ended_on)?.class_id ?? ''}>
+              <option value="">未所属</option>
+              {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </Field>
+          <Button type="submit" variant="secondary">保存</Button>
+        </form>
+      </Card>
+
       {status !== 'suspended' && (
         <Card>
           <h2 className="mb-2 font-bold">招待</h2>
