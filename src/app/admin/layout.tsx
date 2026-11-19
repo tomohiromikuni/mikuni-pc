@@ -22,28 +22,42 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-dvh md:flex">
       <AdminMobileHeader name={me.full_name} roleLabel={roleLabel} />
-      <aside className="surface relative hidden border-r print:hidden md:sticky md:top-0 md:block md:h-dvh md:w-60 md:shrink-0">
-        <div className="px-4 py-3">
-          <p className="font-bold text-brand-700">{env.appName}</p>
-          <p className="muted text-xs">管理画面・{me.full_name}（{roleLabel}）</p>
-          <form action="/auth/signout" method="post" className="mt-2">
-            <button className="muted text-sm underline">ログアウト</button>
-          </form>
-        </div>
-        <div className="px-2 pb-2">
+      <aside className="surface hidden border-r print:hidden md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col">
+        {/* 左上：アプリのアイコン＋名前（デザイン案A） */}
+        <a href="/admin" className="flex items-center gap-2.5 px-4 pt-[18px] pb-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-brand-600 text-white" aria-hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16v11H9l-5 4z" /></svg>
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-base leading-tight font-bold">{env.appName}</span>
+            <span className="muted block text-[11px]">管理画面</span>
+          </span>
+        </a>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5">
           <AdminNav />
         </div>
-        <div className="absolute inset-x-0 bottom-0 space-y-2 px-2 pb-3">
+        <div className="line space-y-2.5 border-t p-3">
           <a
             href="/preview"
-            className="flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
+            className="flex items-center justify-center rounded-xl border-2 border-dashed border-brand-500 px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
           >
             訓練生の画面を見る
           </a>
-          <p className="muted px-2 text-xs" title="アプリのバージョン">
-            バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
-            {process.env.NEXT_PUBLIC_BUILD_ID && <span className="ml-1 opacity-70">({process.env.NEXT_PUBLIC_BUILD_ID})</span>}
-          </p>
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700" aria-hidden>
+              {me.full_name.slice(0, 1)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-bold">{me.full_name}</span>
+              <span className="muted block truncate text-[11px]" title="アプリのバージョン">
+                {roleLabel}・バージョン {process.env.NEXT_PUBLIC_APP_VERSION}
+                {process.env.NEXT_PUBLIC_BUILD_ID && ` (${process.env.NEXT_PUBLIC_BUILD_ID})`}
+              </span>
+            </span>
+            <form action="/auth/signout" method="post">
+              <button className="muted min-h-8 text-xs underline">ログアウト</button>
+            </form>
+          </div>
         </div>
       </aside>
       <AdminMain>{children}</AdminMain>
