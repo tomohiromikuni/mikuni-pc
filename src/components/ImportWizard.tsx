@@ -57,8 +57,8 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
     setBusy(true);
     const ok = rows.filter((r) => r.errors.length === 0);
     const result = await importTrainees(
-      ok.map(({ line, full_name, full_name_kana, email, phone, class_id, enrolled_on, expected_completion_on }) => ({
-        line, full_name, full_name_kana, email, phone, class_id, enrolled_on, expected_completion_on,
+      ok.map(({ line, full_name, full_name_kana, email, phone, class_id, seat_no, enrolled_on, expected_completion_on }) => ({
+        line, full_name, full_name_kana, email, phone, class_id, seat_no, enrolled_on, expected_completion_on,
       })),
       fileName,
     );
@@ -121,7 +121,7 @@ export function ImportWizard({ classes }: { classes: ImportClass[] }) {
                   <td className="px-3 py-2">{r.line}</td>
                   <td className="px-3 py-2">{r.full_name}<span className="block text-xs opacity-70">{r.full_name_kana}</span></td>
                   <td className="px-3 py-2 break-all">{r.phone}{r.email && <span className="block text-xs opacity-70">{r.email}</span>}</td>
-                  <td className="px-3 py-2">{r.class_label}</td>
+                  <td className="px-3 py-2">{r.class_label}{r.seat_no && <span className="block text-xs opacity-70">{r.seat_no}番</span>}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.enrolled_on || '—'} 〜 {r.expected_completion_on || '—'}</td>
                   <td className="px-3 py-2">{r.errors.length ? r.errors.map((e) => <div key={e}>⚠ {e}</div>) : <span className="font-bold text-brand-700">OK</span>}</td>
                 </tr>

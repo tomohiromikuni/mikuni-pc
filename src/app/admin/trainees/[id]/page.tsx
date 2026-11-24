@@ -9,6 +9,7 @@ import { getClassOptions } from '@/lib/classes';
 import { formatDate, friendlyDateTime } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import { formatPhone } from '@/lib/phone';
+import { formatStudentNo } from '@/lib/student-number';
 import { STATUS_LABEL, type AccountStatus } from '@/lib/types';
 import { openChatWithTrainee } from '../../chat/actions';
 import { promoteTrainee } from '../../staff/actions';
@@ -29,7 +30,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
     hasPerm('view_pii'),
     getClassOptions(),
     supabase.from('trainee_details').select('*').eq('profile_id', id).maybeSingle(),
-    supabase.from('enrollments').select('id, class_id, started_on, ended_on, classes(name, courses(name))').eq('trainee_id', id).order('started_on', { ascending: false }),
+    supabase.from('enrollments').select('id, class_id, seat_no, started_on, ended_on, classes(name, courses(name, cohort_no))').eq('trainee_id', id).order('started_on', { ascending: false }),
     supabase.from('announcement_recipients').select('read_at, announcements(id, title, published_at)').eq('trainee_id', id).limit(20),
     supabase.from('survey_recipients').select('responded_at, surveys(id, kind, title, target_date, published_at)').eq('trainee_id', id).limit(100),
     supabase.from('survey_responses').select('survey_id, survey_answers(option_id, text_value, survey_options(label))').eq('trainee_id', id),
@@ -44,6 +45,8 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
   // 操作ログは画面を返した後に記録（表示を待たせない）
   if (canPii && detail) after(async () => { await supabase.rpc('log_action', { p_action: 'trainee.view_pii', p_target_type: 'profile', p_target_id: id, p_detail: { name: t.full_name } }); });
   const status = t.status as AccountStatus;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const studentNo = formatStudentNo((current?.classes as any)?.courses?.cohort_no, current?.seat_no);
 
   return (
     <div className="space-y-6">
@@ -52,6 +55,11 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
         {t.full_name} <span className="muted text-base font-normal">{t.full_name_kana}</span>
         <span className="ml-3 rounded-md bg-black/5 px-2 py-0.5 align-middle text-sm">{STATUS_LABEL[status]}</span>
       </PageTitle>
+      {studentNo ? (
+        <p className="-mt-2 text-sm">受講番号：<strong>{studentNo}</strong>（ログインに使います）</p>
+      ) : (
+        <p className="-mt-2 text-sm text-amber-800">受講番号がまだありません。下の「期の番号」（期の設定）と「出席番号」を入れると、本人が受講番号でログインできます。</p>
+      )}
       <Notice error={error} message={message} />
       {canChat && (
         <form action={openChatWithTrainee.bind(null, id)}>
@@ -67,7 +75,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
             classes={classes}
             submitLabel="保存する"
             showContact={canPii}
-            values={{ ...t, ...(detail ?? {}), class_id: current?.class_id ?? '' }}
+            values={{ ...t, ...(detail ?? {}), class_id: current?.class_id ?? '', seat_no: current?.seat_no ?? null }}
           />
         ) : (
           <dl className="grid gap-2 sm:grid-cols-2">
@@ -84,7 +92,7 @@ export default async function TraineeDetail({ params, searchParams }: { params: 
           <h2 className="mb-2 font-bold">登録待ち</h2>
           <p className="text-sm">
             まだ本人の登録が済んでいません。<Link href="/admin/join-qr" className="font-bold text-brand-700 underline">共通の登録用QR</Link>
-            から登録してもらってください。名簿の<strong>携帯番号と氏名</strong>が一致すれば、自動的にこのアカウントにつながります。
+            から登録してもらってください。名簿の<strong>受講番号（○期生 ○番）と氏名</strong>が一致すれば、自動的にこのアカウントにつながります。
           </p>
         </Card>
       )}

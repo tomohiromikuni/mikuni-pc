@@ -46,7 +46,7 @@ test('よくある間違いを行ごとに指摘する', () => {
     classes,
     { phones: new Set(['08099990000']) },
   );
-  assert.deepEqual(rows[0].errors, ['氏名が空です', '携帯番号が空です', 'メールアドレスの形式が正しくありません']);
+  assert.deepEqual(rows[0].errors, ['氏名が空です', 'メールアドレスの形式が正しくありません']); // 携帯番号は任意
   assert.ok(rows[1].errors.some((e) => e.includes('2027年1月期')));
   assert.ok(rows[1].errors.some((e) => e.includes('入校日')));
   assert.ok(rows[2].errors.some((e) => e.includes('3行目と重複')));
@@ -63,11 +63,32 @@ test('見出しの表記ゆれ（コース・期生）と空行に対応する',
   assert.equal(rows[0].class_id, 'c1');
 });
 
-test('必要な列がなければ全体エラー', () => {
-  assert.match(validateRows([['氏名', 'メール'], ['A', 'a@b.jp']], classes).headerError, /電話番号/);
+test('必要な列がなければ全体エラー（必須は氏名だけ）', () => {
+  assert.match(validateRows([['名なし', 'メール'], ['A', 'a@b.jp']], classes).headerError, /氏名/);
+  assert.equal(validateRows([['氏名', 'メール'], ['A', 'a@b.jp']], classes).headerError, undefined);
   assert.match(validateRows([], classes).headerError, /データがありません/);
 });
 
 test('テンプレートは BOM 付きで見出しを含む', () => {
-  assert.ok(templateCsv().startsWith('﻿氏名,フリガナ,電話番号,メールアドレス,期'));
+  assert.ok(templateCsv().startsWith('﻿氏名,フリガナ,期,出席番号,電話番号'));
+});
+
+test('出席番号：期と一緒に読み、同じ期で重複すればエラー', () => {
+  const { rows } = validateRows(
+    [
+      ['氏名', '期', '出席番号'],
+      ['A', '2026年11月期', '５'],
+      ['B', '2026年11月期', '05'],
+      ['C', '2026年8月期', '5'],
+      ['D', '', '7'],
+      ['E', '2026年8月期', 'x'],
+    ],
+    classes,
+  );
+  assert.deepEqual(rows[0].errors, []);
+  assert.equal(rows[0].seat_no, '5');
+  assert.ok(rows[1].errors.some((e) => e.includes('2行目と重複')));
+  assert.deepEqual(rows[2].errors, []); // 別の期なら同じ番号でよい
+  assert.ok(rows[3].errors.some((e) => e.includes('期も入れて')));
+  assert.ok(rows[4].errors.some((e) => e.includes('1〜999')));
 });

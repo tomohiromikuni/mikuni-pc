@@ -8,6 +8,7 @@ type Values = {
   email?: string | null;
   phone?: string;
   class_id?: string;
+  seat_no?: number | null;
   enrolled_on?: string | null;
   expected_completion_on?: string | null;
 };
@@ -31,18 +32,21 @@ export function TraineeForm({
       <Field label="フリガナ"><input name="full_name_kana" defaultValue={values.full_name_kana} placeholder="ヤマダ ハナコ" /></Field>
       {showContact ? (
         <>
-          <Field label="携帯番号（必須・ログインIDになります）"><input name="phone" type="tel" inputMode="tel" defaultValue={values.phone ? formatPhone(values.phone) : ''} placeholder="090-1234-5678" required /></Field>
+          <Field label="携帯番号（任意）"><input name="phone" type="tel" inputMode="tel" defaultValue={values.phone ? formatPhone(values.phone) : ''} placeholder="090-1234-5678" /></Field>
           <Field label="メールアドレス（任意）"><input name="email" type="email" defaultValue={values.email ?? ''} /></Field>
         </>
       ) : null}
-      <Field label="所属する期">
-        <select name="class_id" defaultValue={values.class_id ?? ''}>
-          <option value="">未所属</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.label}</option>
-          ))}
-        </select>
-      </Field>
+      <div className="grid grid-cols-[1fr_7rem] gap-3">
+        <Field label="所属する期">
+          <select name="class_id" defaultValue={values.class_id ?? ''}>
+            <option value="">未所属</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="出席番号"><input name="seat_no" inputMode="numeric" defaultValue={values.seat_no ?? ''} placeholder="5" maxLength={3} /></Field>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="入校日"><input name="enrolled_on" type="date" defaultValue={values.enrolled_on ?? ''} /></Field>
         <Field label="修了予定日"><input name="expected_completion_on" type="date" defaultValue={values.expected_completion_on ?? ''} /></Field>

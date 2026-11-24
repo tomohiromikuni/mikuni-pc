@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { parseNo } from '@/lib/student-number';
 
 /** 「訓練生」画面に戻ってお知らせを出す */
 function back(_courseId: string | null, kind: 'error' | 'message', msg: string): never {
@@ -11,32 +12,44 @@ function back(_courseId: string | null, kind: 'error' | 'message', msg: string):
 }
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
+/** 期の番号（例：27）。空なら null、読めなければ undefined */
+const cohortNo = (f: FormData): number | null | undefined => {
+  const v = str(f, 'cohort_no');
+  if (!v) return null;
+  return parseNo(v, 9999) ?? undefined;
+};
+const cohortError = (error: { code?: string; message: string }) =>
+  error.code === '23505' ? 'その期の番号は、ほかの期で使われています' : error.message;
 const dateOrNull = (f: FormData, k: string) => str(f, k) || null;
 
 /** 新しい期を作る（最初のクラスも一緒に作れる） */
 export async function createCourse(f: FormData) {
   const me = await requireAdmin();
   const name = str(f, 'name');
-  if (!name) back(null, 'error', '期の名前を入力してください（例：2026年11月期）');
+  const no = cohortNo(f);
+  if (no === undefined) back(null, 'error', '期の番号は数字で入力してください（例：27）');
+  if (!name && !no) back(null, 'error', '期の番号か名前を入力してください（例：27）');
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('courses')
-    .insert({ org_id: me.org_id, name, starts_on: dateOrNull(f, 'starts_on'), ends_on: dateOrNull(f, 'ends_on') })
+    .insert({ org_id: me.org_id, name: name || `${no}期生`, cohort_no: no, starts_on: dateOrNull(f, 'starts_on'), ends_on: dateOrNull(f, 'ends_on') })
     .select('id')
     .single();
-  if (error || !data) back(null, 'error', '作成できませんでした：' + error?.message);
+  if (error || !data) back(null, 'error', '作成できませんでした：' + (error ? cohortError(error) : ''));
   // クラスは使わないので、期の中に自動のクラスを1つだけ作る（所属や登録受付の記録に使う）
   await supabase.from('classes').insert({ org_id: me.org_id, course_id: data!.id, name: '全体', open_for_signup: f.get('open_for_signup') === 'on' });
-  back(data!.id, 'message', `「${name}」を作りました`);
+  back(data!.id, 'message', `「${name || `${no}期生`}」を作りました`);
 }
 
 export async function updateCourse(id: string, f: FormData) {
   await requireAdmin();
   const name = str(f, 'name');
   if (!name) back(id, 'error', '期の名前を入力してください');
+  const no = cohortNo(f);
+  if (no === undefined) back(id, 'error', '期の番号は数字で入力してください（例：27）');
   const supabase = await createClient();
-  const { error } = await supabase.from('courses').update({ name, starts_on: dateOrNull(f, 'starts_on'), ends_on: dateOrNull(f, 'ends_on') }).eq('id', id);
-  if (error) back(id, 'error', '保存できませんでした：' + error.message);
+  const { error } = await supabase.from('courses').update({ name, cohort_no: no, starts_on: dateOrNull(f, 'starts_on'), ends_on: dateOrNull(f, 'ends_on') }).eq('id', id);
+  if (error) back(id, 'error', '保存できませんでした：' + cohortError(error));
   back(id, 'message', '期の情報を保存しました');
 }
 

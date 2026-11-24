@@ -11,9 +11,12 @@ import { createCourse, setCourseArchived, setCourseSignup, updateCourse } from '
 
 type Search = Flash & { q?: string; view?: string };
 
-type Person = { id: string; name: string; kana: string; status: AccountStatus; phone: string; courseId: string; absent: number; finished: boolean };
+type Person = { id: string; name: string; kana: string; status: AccountStatus; phone: string; courseId: string; seat: number | null; absent: number; finished: boolean };
 
-type Course = { id: string; name: string; starts_on: string | null; ends_on: string | null; archived: boolean; finished: boolean; signup: boolean };
+type Course = { id: string; name: string; cohort_no: number | null; starts_on: string | null; ends_on: string | null; archived: boolean; finished: boolean; signup: boolean };
+
+/** 出席番号の順（番号のない人は後ろにフリガナ順） */
+const bySeat = (list: Person[]) => [...list].sort((a, b) => (a.seat ?? 1e9) - (b.seat ?? 1e9) || a.kana.localeCompare(b.kana, 'ja'));
 
 /** 1つの期で最初に見せる人数（残りは「ほか○人を表示」） */
 const FIRST = 10;
@@ -28,10 +31,10 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
 
   const [canManage, { data: courseRows }, { data: trainees }, overview] = await Promise.all([
     hasPerm('manage_trainees'),
-    supabase.from('courses').select('id, name, starts_on, ends_on, archived, classes(archived, open_for_signup)').order('starts_on', { ascending: false, nullsFirst: false }),
+    supabase.from('courses').select('id, name, cohort_no, starts_on, ends_on, archived, classes(archived, open_for_signup)').order('starts_on', { ascending: false, nullsFirst: false }),
     supabase
       .from('profiles')
-      .select('id, full_name, full_name_kana, status, trainee_details(phone, expected_completion_on), enrollments(ended_on, classes(course_id))')
+      .select('id, full_name, full_name_kana, status, trainee_details(phone, expected_completion_on), enrollments(ended_on, seat_no, classes(course_id))')
       .or('role.eq.trainee,also_trainee.eq.true')
       .order('full_name_kana'),
     // 欠席の目印（データベースの追加設定前はなしで表示）
@@ -43,6 +46,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
   const courses: Course[] = ((courseRows ?? []) as any[]).map((c) => ({
     id: c.id,
     name: c.name,
+    cohort_no: c.cohort_no,
     starts_on: c.starts_on,
     ends_on: c.ends_on,
     archived: c.archived,
@@ -62,6 +66,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
       status: t.status,
       phone: t.trainee_details?.phone ?? '',
       courseId: cur?.classes?.course_id ?? '',
+      seat: cur?.seat_no ?? null,
       absent: ov.get(t.id)?.absent_month ?? 0,
       // 受講が終わった人（期を修了にした・期の終了日や本人の修了予定日を過ぎた）
       finished: hasFinished({ courseArchived: c?.archived, courseEndsOn: c?.ends_on, expectedCompletionOn: t.trainee_details?.expected_completion_on }, today),
@@ -79,7 +84,7 @@ export default async function TraineesPage({ searchParams }: { searchParams: Pro
   const groups = [
     ...courses
       .filter((c) => (view === 'done' ? inView.some((p) => p.courseId === c.id) : !c.finished || inView.some((p) => p.courseId === c.id)))
-      .map((c) => ({ course: c as Course | null, members: inView.filter((p) => p.courseId === c.id) })),
+      .map((c) => ({ course: c as Course | null, members: bySeat(inView.filter((p) => p.courseId === c.id)) })),
     { course: null, members: inView.filter((p) => !p.courseId || !courseById.has(p.courseId)) },
   ].filter((g) => g.course || g.members.length > 0);
 
@@ -168,6 +173,7 @@ function GroupHeader({ course, count }: { course: Course | null; count: number }
   return (
     <div className="line flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b bg-black/[0.02] px-4 py-2.5">
       <h2 className={`text-base font-bold ${course ? '' : 'text-amber-800'}`}>{course?.name ?? '期が決まっていない人'}</h2>
+      {course && !course.cohort_no && <span className="text-xs font-bold text-amber-800">期の番号が未設定（受講番号でログインできません）</span>}
       {course && (
         <span className="muted text-[13px]">
           {course.starts_on || course.ends_on ? `${formatDate(course.starts_on)}〜${formatDate(course.ends_on)}・` : ''}
@@ -184,6 +190,7 @@ function PeopleList({ people, flat = false, courseName }: { people: Person[]; fl
   const row = (p: Person) => (
     <li key={p.id}>
       <Link href={`/admin/trainees/${p.id}`} className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-0.5 px-4 py-2.5 hover:bg-black/[0.03]">
+        <span className={`w-10 shrink-0 text-right text-sm tabular-nums ${p.seat ? 'muted' : 'text-amber-800'}`} title={p.seat ? '出席番号' : '出席番号がありません'}>{p.seat ? `${p.seat}番` : '—'}</span>
         <span className={`min-w-0 flex-1 truncate font-bold ${p.status === 'suspended' ? 'muted' : ''}`}>{p.name}</span>
         {courseName && <span className="muted text-[13px]">{courseName(p.courseId) ?? '期なし'}</span>}
         <span className="muted w-32 text-sm">{formatPhone(p.phone)}</span>
@@ -226,7 +233,8 @@ function CourseSettings({ courses }: { courses: Course[] }) {
       {current.length === 0 && <p className="muted text-sm">受講中の期はありません。</p>}
       {current.map((c) => (
         <section key={c.id} className="line space-y-3 rounded-xl border p-3">
-          <form action={updateCourse.bind(null, c.id)} className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
+          <form action={updateCourse.bind(null, c.id)} className="grid gap-3 sm:grid-cols-[5rem_2fr_1fr_1fr_auto] sm:items-end">
+            <Field label="期の番号"><input name="cohort_no" inputMode="numeric" defaultValue={c.cohort_no ?? ''} placeholder="27" maxLength={4} /></Field>
             <Field label="期の名前"><input name="name" defaultValue={c.name} required /></Field>
             <Field label="開始日"><input name="starts_on" type="date" defaultValue={c.starts_on ?? ''} /></Field>
             <Field label="終了日"><input name="ends_on" type="date" defaultValue={c.ends_on ?? ''} /></Field>
@@ -248,12 +256,13 @@ function CourseSettings({ courses }: { courses: Course[] }) {
 
       <details className="line rounded-xl border">
         <summary className="cursor-pointer list-none px-3 py-3 font-bold text-brand-700 [&::-webkit-details-marker]:hidden">＋ 新しい期を作る</summary>
-        <form action={createCourse} className="grid gap-3 px-3 pb-3 sm:grid-cols-[2fr_1fr_1fr] sm:items-end">
-          <Field label="期の名前"><input name="name" required placeholder="例：2027年4月期" /></Field>
+        <form action={createCourse} className="grid gap-3 px-3 pb-3 sm:grid-cols-[5rem_2fr_1fr_1fr] sm:items-end">
+          <Field label="期の番号"><input name="cohort_no" inputMode="numeric" required placeholder="28" maxLength={4} /></Field>
+          <Field label="期の名前（空なら「28期生」）"><input name="name" placeholder="例：28期生" /></Field>
           <Field label="開始日"><input name="starts_on" type="date" /></Field>
           <Field label="終了日"><input name="ends_on" type="date" /></Field>
-          <label className="flex items-center gap-2 text-sm font-normal sm:col-span-3"><input type="checkbox" name="open_for_signup" defaultChecked /> すぐに登録を受け付ける</label>
-          <Button type="submit" className="sm:col-span-3 sm:justify-self-start">作成する</Button>
+          <label className="flex items-center gap-2 text-sm font-normal sm:col-span-4"><input type="checkbox" name="open_for_signup" defaultChecked /> すぐに登録を受け付ける</label>
+          <Button type="submit" className="sm:col-span-4 sm:justify-self-start">作成する</Button>
         </form>
       </details>
 

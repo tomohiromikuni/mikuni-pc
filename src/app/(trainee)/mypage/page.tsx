@@ -3,6 +3,7 @@ import { Button, Card, LinkButton, PageTitle } from '@/components/ui';
 import { env } from '@/lib/env';
 import { requireTrainee } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
+import { formatStudentNo } from '@/lib/student-number';
 import { formatPhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 
@@ -13,7 +14,7 @@ export default async function MyPage() {
     supabase.from('trainee_details').select('*').eq('profile_id', me.id).maybeSingle(),
     supabase
       .from('enrollments')
-      .select('classes(name, courses(name))')
+      .select('seat_no, classes(name, courses(name, cohort_no))')
       .eq('trainee_id', me.id)
       .is('ended_on', null)
       .maybeSingle(),
@@ -23,7 +24,8 @@ export default async function MyPage() {
   const rows: [string, string][] = [
     ['氏名', me.full_name],
     ['フリガナ', me.full_name_kana || '—'],
-    ['携帯番号（ログインID）', formatPhone(detail?.phone) || '—'],
+    ['受講番号（ログインID）', formatStudentNo(cls?.courses?.cohort_no, (enr as any)?.seat_no) || '—'], // eslint-disable-line @typescript-eslint/no-explicit-any
+    ...(detail?.phone ? [['携帯番号', formatPhone(detail.phone)] as [string, string]] : []),
     ...(detail?.email ? [['メールアドレス', detail.email] as [string, string]] : []),
     ['期', cls?.courses?.name ?? '—'],
     ['入校日', formatDate(detail?.enrolled_on)],
