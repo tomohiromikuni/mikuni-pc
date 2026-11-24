@@ -34,12 +34,14 @@ test('期の名前の数字から期の番号を入れる（重複するとき�
     await c.query('begin');
     const [{ id: a }] = (await c.query("insert into courses (org_id, name) values ($1, '第30期 Web') returning id", [W.orgA])).rows;
     const [{ id: b }] = (await c.query("insert into courses (org_id, name) values ($1, '31期（午前）') returning id", [W.orgA])).rows;
+    const [{ id: y }] = (await c.query("insert into courses (org_id, name) values ($1, '2027年1期') returning id", [W.orgA])).rows;
     const [{ id: d1 }] = (await c.query("insert into courses (org_id, name) values ($1, '40期A') returning id", [W.orgA])).rows;
     const [{ id: d2 }] = (await c.query("insert into courses (org_id, name) values ($1, '40期B') returning id", [W.orgA])).rows;
     await c.query(sql);
     const get = async (id) => (await c.query('select cohort_no from courses where id = $1', [id])).rows[0].cohort_no;
     assert.equal(await get(a), 30);
     assert.equal(await get(b), 31);
+    assert.equal(await get(y), null); // 「2027年1期」は年の数字なので入れない
     assert.equal(await get(d1), null); // 40期が2つあるので自動では入れない
     assert.equal(await get(d2), null);
   } finally {
