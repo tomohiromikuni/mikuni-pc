@@ -6,8 +6,7 @@ import { z } from 'zod';
 import { requireAdmin, requirePerm } from '@/lib/auth';
 import { env } from '@/lib/env';
 import { INVITE_DAYS, newInviteToken } from '@/lib/invite';
-import { isPhoneLoginEmail, newRosterLoginEmail, normalizePhone, phoneToLoginEmail } from '@/lib/phone';
-import { parseNo } from '@/lib/student-number';
+import { isPhoneLoginEmail, normalizePhone, phoneToLoginEmail } from '@/lib/phone';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,9 +14,7 @@ const traineeSchema = z.object({
   full_name: z.string().trim().min(1, '氏名を入力してください').max(100),
   full_name_kana: z.string().trim().max(100),
   email: z.union([z.literal(''), z.string().trim().toLowerCase().pipe(z.email('メールアドレスの形式が正しくありません'))]).default(''),
-  // 携帯番号は任意（受講番号でログインできるため）
   phone: z.string().trim().transform((v, ctx) => {
-    if (!v) return '';
     const p = normalizePhone(v);
     if (!p) {
       ctx.addIssue({ code: 'custom', message: '携帯番号を正しく入力してください（例：090-1234-5678）' });
@@ -26,32 +23,15 @@ const traineeSchema = z.object({
     return p;
   }),
   class_id: z.string().trim(),
-  seat_no: z.string().trim().default('').transform((v, ctx) => {
-    if (!v) return null;
-    const n = parseNo(v);
-    if (!n) {
-      ctx.addIssue({ code: 'custom', message: '出席番号は1〜999の数字で入力してください' });
-      return z.NEVER;
-    }
-    return n;
-  }),
   enrolled_on: z.string().trim(),
   expected_completion_on: z.string().trim(),
 });
 
 function parse(f: FormData, withContact = true) {
   const schema = withContact ? traineeSchema : traineeSchema.omit({ email: true, phone: true });
-  const r = schema.safeParse(Object.fromEntries(['full_name', 'full_name_kana', 'email', 'phone', 'class_id', 'seat_no', 'enrolled_on', 'expected_completion_on'].map((k) => [k, String(f.get(k) ?? '')])));
+  const r = schema.safeParse(Object.fromEntries(['full_name', 'full_name_kana', 'email', 'phone', 'class_id', 'enrolled_on', 'expected_completion_on'].map((k) => [k, String(f.get(k) ?? '')])));
   if (!r.success) return { error: r.error.issues[0].message } as const;
-  if (r.data.seat_no && !r.data.class_id) return { error: '出席番号を入れるときは、所属する期も選んでください' } as const;
   return { data: r.data as z.infer<typeof traineeSchema> } as const;
-}
-
-/** 重複エラーを分かりやすい文に */
-function dupMessage(error: { code?: string; message: string }): string | null {
-  if (error.code !== '23505') return null;
-  if (/seat/.test(error.message)) return 'その出席番号は、この期ですでに使われています';
-  return 'この携帯番号はすでに登録されています';
 }
 
 const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
@@ -62,8 +42,8 @@ type Me = { id: string; org_id: string; role: string };
 /** 訓練生を1人登録する（ログインアカウント → 本人の権限で各表へ）。失敗時は元に戻してエラー文を返す */
 async function createTraineeRecord(me: Me, v: TraineeValues): Promise<{ id?: string; error?: string }> {
   const admin = createAdminClient();
-  // 内部のログインID：メールアドレス → 携帯番号 → どちらもなければ内部用のID（本人は受講番号でログインする）
-  const loginEmail = v.email || (v.phone ? phoneToLoginEmail(v.phone) : newRosterLoginEmail());
+  // ログインID：メールアドレスがあればそれ、なければ携帯番号
+  const loginEmail = v.email || phoneToLoginEmail(v.phone);
   const { data: created, error: authErr } = await admin.auth.admin.createUser({ email: loginEmail, email_confirm: true });
   if (authErr || !created.user) {
     return {
@@ -76,14 +56,14 @@ async function createTraineeRecord(me: Me, v: TraineeValues): Promise<{ id?: str
   const supabase = await createClient();
   const steps = [
     () => supabase.from('profiles').insert({ id, org_id: me.org_id, role: 'trainee', status: 'invited', full_name: v.full_name, full_name_kana: v.full_name_kana }),
-    () => (v.class_id ? supabase.from('enrollments').insert({ org_id: me.org_id, trainee_id: id, class_id: v.class_id, seat_no: v.seat_no, started_on: v.enrolled_on || today() }) : Promise.resolve({ error: null })),
+    () => (v.class_id ? supabase.from('enrollments').insert({ org_id: me.org_id, trainee_id: id, class_id: v.class_id, started_on: v.enrolled_on || today() }) : Promise.resolve({ error: null })),
     () => supabase.from('trainee_details').insert({ profile_id: id, email: v.email || null, phone: v.phone, enrolled_on: v.enrolled_on || null, expected_completion_on: v.expected_completion_on || null }),
   ];
   for (const step of steps) {
     const { error } = await step();
     if (error) {
       await admin.auth.admin.deleteUser(id);
-      return { error: dupMessage(error) ?? '登録できませんでした：' + error.message };
+      return { error: error.code === '23505' ? 'この携帯番号はすでに登録されています' : '登録できませんでした：' + error.message };
     }
   }
   return { id };
@@ -112,7 +92,7 @@ export async function findExisting(emails: string[], phones: string[]): Promise<
   return { emails: (e ?? []).map((r) => r.email), phones: (p ?? []).map((r) => r.phone) };
 }
 
-export type ImportInput = z.input<typeof traineeSchema> & { line: number };
+export type ImportInput = Omit<TraineeValues, never> & { line: number };
 export type ImportResult = { succeeded: number; failed: { line: number; name: string; error: string }[] };
 
 /** 一括登録（確認画面でエラーのなかった行だけが送られてくる。念のためここでも再チェック） */
@@ -163,9 +143,8 @@ export async function updateTrainee(id: string, f: FormData) {
     const admin = createAdminClient();
     const { data: u } = await admin.auth.admin.getUserById(id);
     const login = u.user?.email ?? '';
-    // 携帯番号が空のときは、今のログインIDのまま（受講番号でログインする）
-    const next = !v.phone ? login : !login || isPhoneLoginEmail(login) ? phoneToLoginEmail(v.phone) : v.email || phoneToLoginEmail(v.phone);
-    if (next && next !== login) {
+    const next = !login || isPhoneLoginEmail(login) ? phoneToLoginEmail(v.phone) : v.email || phoneToLoginEmail(v.phone);
+    if (next !== login) {
       const { error } = await admin.auth.admin.updateUserById(id, { email: next, email_confirm: true });
       if (error) back('error', /already|exists|registered/i.test(error.message) ? 'その携帯番号（メールアドレス）は別の人が使っています' : 'ログインIDを変更できませんでした：' + error.message);
     }
@@ -184,12 +163,9 @@ export async function updateTrainee(id: string, f: FormData) {
     if (enr) await supabase.from('enrollments').update({ ended_on: today() }).eq('id', enr.id);
     if (v.class_id) {
       const { data: prof } = await supabase.from('profiles').select('org_id').eq('id', id).single();
-      const { error } = await supabase.from('enrollments').insert({ org_id: prof!.org_id, trainee_id: id, class_id: v.class_id, seat_no: v.seat_no, started_on: today() });
-      if (error) back('error', dupMessage(error) ?? '所属を変更できませんでした：' + error.message);
+      const { error } = await supabase.from('enrollments').insert({ org_id: prof!.org_id, trainee_id: id, class_id: v.class_id, started_on: today() });
+      if (error) back('error', '所属を変更できませんでした：' + error.message);
     }
-  } else if (enr && f.has('seat_no')) {
-    const { error } = await supabase.from('enrollments').update({ seat_no: v.seat_no }).eq('id', enr.id);
-    if (error) back('error', dupMessage(error) ?? '出席番号を保存できませんでした：' + error.message);
   }
   revalidatePath(`/admin/trainees/${id}`);
   back('message', '保存しました');

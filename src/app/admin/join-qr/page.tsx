@@ -30,8 +30,8 @@ export default async function JoinQrPage() {
         <img src={qr} alt="登録用QRコード" className="mx-auto my-4 w-64" />
         <ol className="mx-auto max-w-xs list-decimal pl-5 text-left text-sm leading-relaxed">
           <li>スマホのカメラでQRコードを読み取る</li>
-          <li>受講番号（○期生 ○番）とお名前を入力</li>
-          <li>自分でパスワードを決めて登録</li>
+          <li>何期生かを選び、名前と携帯番号を入力</li>
+          <li>パスワードを決めて登録</li>
           <li>ホーム画面に追加すると便利です</li>
         </ol>
         <p className="mt-4 text-xs break-all">{url}</p>

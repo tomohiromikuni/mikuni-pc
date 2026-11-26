@@ -38,8 +38,3 @@ export function loginIdToEmail(input: string): string | null {
   const p = normalizePhone(v);
   return p ? phoneToLoginEmail(p) : null;
 }
-
-/** 携帯番号もメールアドレスもない人（受講番号でログインする人）の内部用ログインID */
-export function newRosterLoginEmail(): string {
-  return `t${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 16)}@${LOGIN_DOMAIN}`;
-}

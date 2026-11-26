@@ -1,8 +1,7 @@
 // Excel・CSV 一括登録：取り込み前のチェック（画面とテストの両方で使う純粋な関数）
 import { normalizePhone } from './phone.ts';
-import { parseNo } from './student-number.ts';
 
-export const IMPORT_COLUMNS = ['氏名', 'フリガナ', '期', '出席番号', '電話番号', 'メールアドレス', '入校日', '修了予定日'] as const;
+export const IMPORT_COLUMNS = ['氏名', 'フリガナ', '電話番号', 'メールアドレス', '期', '入校日', '修了予定日'] as const;
 
 export type ImportClass = { id: string; courseName: string; name: string };
 
@@ -14,7 +13,6 @@ export type ImportRow = {
   phone: string;
   class_id: string;
   class_label: string;
-  seat_no: string;
   enrolled_on: string;
   expected_completion_on: string;
   errors: string[];
@@ -62,7 +60,6 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
     氏名: '氏名', 名前: '氏名', フリガナ: 'フリガナ', ふりがな: 'フリガナ', カナ: 'フリガナ',
     メールアドレス: 'メールアドレス', メール: 'メールアドレス', email: 'メールアドレス', Email: 'メールアドレス',
     電話番号: '電話番号', 電話: '電話番号', 携帯番号: '電話番号', 携帯電話: '電話番号', 携帯: '電話番号',
-    出席番号: '出席番号', 番号: '出席番号', 番: '出席番号', No: '出席番号', 'No.': '出席番号',
     期: '期', 期生: '期', コース: '期', コース名: '期', 所属コース: '期',
     入校日: '入校日', コース開始日: '入校日', 開始日: '入校日',
     修了予定日: '修了予定日', 修了日: '修了予定日', 終了日: '修了予定日',
@@ -72,7 +69,7 @@ export function mapHeader(header: Cell[]): { map: Partial<Record<(typeof IMPORT_
     const key = alias[n];
     if (key && map[key] === undefined) map[key] = i;
   });
-  const missing = (['氏名'] as const).filter((k) => map[k] === undefined);
+  const missing = (['氏名', '電話番号'] as const).filter((k) => map[k] === undefined);
   return { map, missing };
 }
 
@@ -91,7 +88,6 @@ export function validateRows(
   const norm = (s: string) => s.normalize('NFKC').replace(/\s/g, '').toLowerCase();
   const seen = new Map<string, number>();
   const seenPhone = new Map<string, number>();
-  const seenSeat = new Map<string, number>();
   const existingEmails = existing.emails ?? new Set<string>();
   const existingPhones = existing.phones ?? new Set<string>();
   const rows: ImportRow[] = [];
@@ -111,10 +107,8 @@ export function validateRows(
     const phone = normalizePhone(phoneRaw);
 
     if (!full_name) errors.push('氏名が空です');
-    // 携帯番号は任意（受講番号でログインする）
-    if (!phoneRaw) {
-      /* なし */
-    } else if (!phone) errors.push('携帯番号の形式が正しくありません（例：090-1234-5678）');
+    if (!phoneRaw) errors.push('携帯番号が空です');
+    else if (!phone) errors.push('携帯番号の形式が正しくありません（例：090-1234-5678）');
     else if (existingPhones.has(phone)) errors.push('この携帯番号はすでに登録されています');
     else if (seenPhone.has(phone)) errors.push(`携帯番号が${seenPhone.get(phone)}行目と重複しています`);
     if (phone) seenPhone.set(phone, i + 1);
@@ -136,15 +130,6 @@ export function validateRows(
         class_label = hit.courseName;
       }
     }
-    const seatRaw = clean(get('出席番号'));
-    const seat = seatRaw ? parseNo(seatRaw) : null;
-    if (seatRaw && !seat) errors.push('出席番号は1〜999の数字にしてください');
-    else if (seat && !class_id && !course) errors.push('出席番号を入れるときは、期も入れてください');
-    else if (seat && class_id) {
-      const key = `${class_id}:${seat}`;
-      if (seenSeat.has(key)) errors.push(`出席番号が${seenSeat.get(key)}行目と重複しています`);
-      seenSeat.set(key, i + 1);
-    }
     if (enrolled === null) errors.push('入校日の形式が正しくありません（例：2026/4/1）');
     if (completion === null) errors.push('修了予定日の形式が正しくありません（例：2026/9/30）');
     if (enrolled && completion && enrolled > completion) errors.push('修了予定日が入校日より前です');
@@ -157,7 +142,6 @@ export function validateRows(
       phone: phone ?? phoneRaw,
       class_id,
       class_label,
-      seat_no: seat ? String(seat) : '',
       enrolled_on: enrolled ?? '',
       expected_completion_on: completion ?? '',
       errors,
@@ -170,5 +154,5 @@ export function validateRows(
 export function templateCsv(sample?: { courseName: string }): string {
   const course = sample?.courseName ?? '2026年11月期';
   const bom = String.fromCharCode(0xfeff);
-  return bom + [IMPORT_COLUMNS.join(','), `山田 花子,ヤマダ ハナコ,${course},1,,,2026/4/1,2026/9/30`].join('\r\n') + '\r\n';
+  return bom + [IMPORT_COLUMNS.join(','), `山田 花子,ヤマダ ハナコ,090-1234-5678,,${course},2026/4/1,2026/9/30`].join('\r\n') + '\r\n';
 }

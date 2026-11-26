@@ -17,7 +17,7 @@ export default async function NewTraineePage({ searchParams }: { searchParams: P
       <Card>
         <TraineeForm action={createTrainee} classes={classes} submitLabel="登録する" />
       </Card>
-      <p className="text-sm">登録後は、本人に<strong>共通の登録用QR</strong>から登録してもらいます（受講番号「○期生 ○番」と氏名で、この名簿と自動的につながります）。大人数は <Link href="/admin/trainees/import" className="font-bold text-brand-700 underline">Excel・CSVで一括登録</Link> が便利です。</p>
+      <p className="text-sm">登録後は、本人に<strong>共通の登録用QR</strong>から登録してもらいます（携帯番号と氏名で自動的につながります）。大人数は <Link href="/admin/trainees/import" className="font-bold text-brand-700 underline">Excel・CSVで一括登録</Link> が便利です。</p>
     </div>
   );
 }

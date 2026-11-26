@@ -16,7 +16,7 @@ export function TempPasswordPanel({ issue }: { issue: () => Promise<TempPassword
         <div className="rounded-xl border-2 border-dashed border-brand-500 p-4">
           <p className="text-sm">仮パスワード（以前のパスワードは使えなくなりました）</p>
           <p className="my-1 font-mono text-3xl font-bold tracking-widest">{state.password}</p>
-          <p className="muted text-xs">この画面を閉じると再表示できません。ログインは「受講番号」とこのパスワードで行います（携帯番号でログインしている人は携帯番号で）。</p>
+          <p className="muted text-xs">この画面を閉じると再表示できません。ログインIDは登録した携帯番号です。</p>
         </div>
       )}
     </div>
